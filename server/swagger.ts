@@ -4,9 +4,9 @@ const options: swaggerJsdoc.Options = {
   definition: {
     openapi: "3.0.0",
     info: {
-      title: "Authentication & OneCard API",
+      title: "Authentication & Payment APIs",
       version: "1.0.0",
-      description: "REST API for user authentication and OneCard Nigeria payment services including mobile top-ups, data bundles, electricity bills, and cable TV subscriptions",
+      description: "REST API for user authentication, OneCard Nigeria payment services (mobile top-ups, data bundles, electricity bills, cable TV subscriptions), and OneBigPie user/voucher management",
       contact: {
         name: "API Support",
       },
@@ -421,6 +421,174 @@ const options: swaggerJsdoc.Options = {
             },
           },
         },
+        OneBigPieCreateUserRequest: {
+          type: "object",
+          required: ["email", "firstname", "lastname", "phone"],
+          properties: {
+            email: { type: "string", format: "email", example: "john@example.com" },
+            firstname: { type: "string", example: "John" },
+            lastname: { type: "string", example: "Doe" },
+            phone: { type: "string", example: "08012345678" },
+          },
+        },
+        OneBigPieUser: {
+          type: "object",
+          properties: {
+            id: { type: "integer", example: 8452 },
+            firstname: { type: "string", example: "John" },
+            lastname: { type: "string", example: "Doe" },
+            email: { type: "string", format: "email" },
+            phone: { type: "string" },
+            usercode: { type: "string", example: "RROBP9503284" },
+            created_at: { type: "string", format: "date-time" },
+            role: { type: "integer" },
+            accounttype: { type: "string" },
+            refereecode: { type: "string" },
+          },
+        },
+        OneBigPieUserResponse: {
+          type: "object",
+          properties: {
+            status: { type: "boolean", example: true },
+            message: { type: "string", example: "User created successfully" },
+            data: { $ref: "#/components/schemas/OneBigPieUser" },
+          },
+        },
+        OneBigPieUsersListResponse: {
+          type: "object",
+          properties: {
+            status: { type: "boolean", example: true },
+            message: { type: "string", example: "Users fetched successfully" },
+            data: {
+              type: "array",
+              items: { $ref: "#/components/schemas/OneBigPieUser" },
+            },
+          },
+        },
+        OneBigPieSubscribeRequest: {
+          type: "object",
+          required: ["email", "voucher"],
+          properties: {
+            email: { type: "string", format: "email", example: "john@example.com" },
+            voucher: { type: "string", example: "1387103511120401" },
+          },
+        },
+        OneBigPieSubscriptionBalance: {
+          type: "object",
+          properties: {
+            userid: { type: "integer" },
+            amount: { type: "string", example: "20000.00" },
+            bankdump: { type: "string" },
+            date: { type: "string", format: "date" },
+            method: { type: "string", example: "voucher" },
+            type: { type: "string", example: "smart" },
+            expirydate: { type: "string", format: "date" },
+            state_id: { type: "string", nullable: true },
+            voucher_info: { type: "string" },
+            refereecode: { type: "string" },
+            id: { type: "integer" },
+            created_at: { type: "string", format: "date-time" },
+            updated_at: { type: "string", format: "date-time" },
+          },
+        },
+        OneBigPieSubscribeResponse: {
+          type: "object",
+          properties: {
+            success: { type: "string", example: "success" },
+            balance: { $ref: "#/components/schemas/OneBigPieSubscriptionBalance" },
+          },
+        },
+        OneBigPieSubscribedUser: {
+          type: "object",
+          properties: {
+            userid: { type: "integer" },
+            amount: { type: "string", example: "20000.00" },
+            date: { type: "string", format: "date" },
+            expirydate: { type: "string", format: "date" },
+            user: {
+              type: "object",
+              properties: {
+                id: { type: "integer" },
+                firstname: { type: "string" },
+                lastname: { type: "string" },
+                email: { type: "string", format: "email" },
+                phone: { type: "string" },
+                usercode: { type: "string" },
+              },
+            },
+          },
+        },
+        OneBigPieSubscribedUsersResponse: {
+          type: "object",
+          properties: {
+            status: { type: "boolean", example: true },
+            message: { type: "string", example: "Subscribed Users fetched successfully" },
+            data: {
+              type: "array",
+              items: { $ref: "#/components/schemas/OneBigPieSubscribedUser" },
+            },
+          },
+        },
+        OneBigPieGenerateVouchersRequest: {
+          type: "object",
+          required: ["quantity"],
+          properties: {
+            quantity: { type: "integer", minimum: 1, example: 10 },
+          },
+        },
+        OneBigPieVoucherBulkPurchase: {
+          type: "object",
+          properties: {
+            type_id: { type: "string", nullable: true },
+            type: { type: "string", example: "Smart Subscription" },
+            amount: { type: "number", example: 196500 },
+            quantity: { type: "string" },
+            user_id: { type: "integer" },
+            requested_date: { type: "string", format: "date-time" },
+            payment_method: { type: "string", example: "safe" },
+            uploaded_file_name: { type: "string", nullable: true },
+            serial: { type: "string", example: "ONEBIGPIE46109678" },
+            status: { type: "string", example: "Approved" },
+            generated_date: { type: "string", format: "date-time" },
+            generated_by: { type: "integer" },
+            id: { type: "integer" },
+            created_at: { type: "string", format: "date-time" },
+            updated_at: { type: "string", format: "date-time" },
+          },
+        },
+        OneBigPieGenerateVouchersResponse: {
+          type: "object",
+          properties: {
+            status: { type: "boolean", example: true },
+            message: { type: "string", example: "Bulk Voucher purchase request successful" },
+            data: { $ref: "#/components/schemas/OneBigPieVoucherBulkPurchase" },
+          },
+        },
+        OneBigPieVoucher: {
+          type: "object",
+          properties: {
+            id: { type: "integer" },
+            code: { type: "string", example: "1687412096955954" },
+            stringed: { type: "string", example: "1687-4120-9695-5954" },
+            amount: { type: "string", example: "20000.00" },
+            used: { type: "string", example: "no" },
+            used_date: { type: "string", format: "date-time", nullable: true },
+            used_by: { type: "string", nullable: true },
+            deactivated: { type: "string", example: "NO" },
+            created_at: { type: "string", format: "date-time" },
+          },
+        },
+        OneBigPieVouchersListResponse: {
+          type: "object",
+          properties: {
+            status: { type: "boolean", example: true },
+            message: { type: "string", example: "Vouchers fetched successfully" },
+            data: {
+              type: "array",
+              items: { $ref: "#/components/schemas/OneBigPieVoucher" },
+            },
+          },
+        },
       },
     },
     tags: [
@@ -432,9 +600,13 @@ const options: swaggerJsdoc.Options = {
         name: "OneCard",
         description: "OneCard Nigeria payment services - Mobile top-ups, Data bundles, Electricity bills, Cable TV subscriptions, and E-vouchers",
       },
+      {
+        name: "OneBigPie",
+        description: "OneBigPie user management and voucher subscription services",
+      },
     ],
   },
-  apis: ["./server/routes.ts", "./server/onecard/routes.ts"],
+  apis: ["./server/routes.ts", "./server/onecard/routes.ts", "./server/onebigpie/routes.ts"],
 };
 
 export const swaggerSpec = swaggerJsdoc(options);

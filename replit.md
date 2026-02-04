@@ -1,8 +1,8 @@
-# Authentication & OneCard API
+# Authentication & Payment APIs
 
 ## Overview
 
-A backend-only REST API application built with Express.js providing user authentication and integration with OneCard Nigeria API for payment and recharge services. The system includes user registration, login, password management, and Swagger API documentation.
+A backend-only REST API application built with Express.js providing user authentication and integration with OneCard Nigeria API for payment/recharge services and OneBigPie API for user management and voucher subscriptions. The system includes user registration, login, password management, and Swagger API documentation.
 
 ## User Preferences
 
@@ -17,6 +17,7 @@ Preferred communication style: Simple, everyday language.
 - **Password Security**: bcryptjs for password hashing
 - **Validation**: Zod schemas shared between client and server
 - **OneCard Integration**: AES-128-CBC encryption for secure API communication
+- **OneBigPie Integration**: Header-based authentication for user/voucher management
 
 ### Data Storage
 - **Current Storage**: In-memory storage implementation (`MemStorage`) with interface for database migration
@@ -29,10 +30,13 @@ Preferred communication style: Simple, everyday language.
 │   ├── routes.ts     # Authentication API endpoints
 │   ├── storage.ts    # Data access layer
 │   ├── swagger.ts    # API documentation config
-│   └── onecard/      # OneCard Nigeria API integration
-│       ├── encryption.ts  # AES encryption utilities
-│       ├── client.ts      # OneCard API client
-│       └── routes.ts      # OneCard API endpoints
+│   ├── onecard/      # OneCard Nigeria API integration
+│   │   ├── encryption.ts  # AES encryption utilities
+│   │   ├── client.ts      # OneCard API client
+│   │   └── routes.ts      # OneCard API endpoints
+│   └── onebigpie/    # OneBigPie API integration
+│       ├── client.ts      # OneBigPie API client
+│       └── routes.ts      # OneBigPie API endpoints
 ├── shared/           # Shared code
 │   └── schema.ts     # Database schema and validation
 └── migrations/       # Drizzle database migrations
@@ -63,6 +67,14 @@ Preferred communication style: Simple, everyday language.
 - `POST /api/onecard/bill/pay` - Pay bills (electricity, cable TV)
 - `GET /api/onecard/transactions` - Get transaction history
 
+#### OneBigPie Integration
+- `POST /api/onebigpie/users` - Create a new user
+- `GET /api/onebigpie/users` - Fetch all users
+- `POST /api/onebigpie/subscribe` - Subscribe a user with a voucher
+- `GET /api/onebigpie/subscribed-users` - Fetch all subscribed users
+- `POST /api/onebigpie/vouchers/generate` - Generate vouchers
+- `GET /api/onebigpie/vouchers` - Fetch all vouchers
+
 #### Documentation
 - `GET /api-docs` - Swagger UI documentation
 - `GET /api/swagger.json` - OpenAPI JSON specification
@@ -84,6 +96,17 @@ Preferred communication style: Simple, everyday language.
 - Session tokens expire after a period defined by OneCard API
 - Session management is automatic - endpoints will re-login if session expires
 
+### OneBigPie Integration Details
+
+#### API Configuration
+- **Base URL**: https://myshelta.com/testapps/api/onebigpie
+- **Authentication**: Header-based with fixed key `MYSHELTA: MYSHELTAONEBIGPIEACCESS`
+
+#### Services
+- User creation and management
+- Voucher generation and tracking
+- Subscription management with vouchers
+
 ### Build Process
 - Development: Vite dev server with Express middleware
 - Production: esbuild bundles server, Vite builds client to `dist/public`
@@ -94,6 +117,11 @@ Preferred communication style: Simple, everyday language.
 - **Base URL**: https://api.onecardnigeria.com/rest
 - **Services**: Mobile top-ups, Data bundles, Electricity bills, Cable TV subscriptions, E-vouchers
 - **Documentation**: https://documenter.getpostman.com/view/7980428/UVsQsiii
+
+### OneBigPie API
+- **Base URL**: https://myshelta.com/testapps/api/onebigpie
+- **Services**: User management, Voucher subscriptions
+- **Documentation**: https://documenter.getpostman.com/view/12000186/2sBXVmf8xJ
 
 ### Authentication & Security
 - **bcryptjs**: Password hashing

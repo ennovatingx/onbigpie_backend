@@ -13,6 +13,7 @@ import { randomUUID } from "crypto";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./swagger";
 import { registerOneCardRoutes } from "./onecard/routes";
+import oneBigPieRoutes from "./onebigpie/routes";
 
 // Simple session store for demo purposes
 const sessions: Map<string, { userId: string; expiresAt: Date }> = new Map();
@@ -485,6 +486,9 @@ export async function registerRoutes(
 
   // Register OneCard Nigeria API routes
   registerOneCardRoutes(app);
+
+  // Register OneBigPie API routes
+  app.use("/api/onebigpie", oneBigPieRoutes);
 
   return httpServer;
 }

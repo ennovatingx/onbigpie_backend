@@ -1,16 +1,486 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { 
+  registerSchema, 
+  loginSchema, 
+  forgotPasswordSchema, 
+  changePasswordSchema,
+  resetPasswordSchema 
+} from "@shared/schema";
+import bcrypt from "bcryptjs";
+import { randomUUID } from "crypto";
+import swaggerUi from "swagger-ui-express";
+import { swaggerSpec } from "./swagger";
+
+// Simple session store for demo purposes
+const sessions: Map<string, { userId: string; expiresAt: Date }> = new Map();
+
+// Middleware to check authentication
+function authenticateToken(req: Request, res: Response, next: NextFunction) {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+
+  if (!token) {
+    return res.status(401).json({ error: "Access token required" });
+  }
+
+  const session = sessions.get(token);
+  if (!session || session.expiresAt < new Date()) {
+    sessions.delete(token);
+    return res.status(401).json({ error: "Invalid or expired token" });
+  }
+
+  (req as any).userId = session.userId;
+  next();
+}
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // put application routes here
-  // prefix all routes with /api
+  // Swagger UI setup
+  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+    customCss: '.swagger-ui .topbar { display: none }',
+    customSiteTitle: "Authentication API Documentation"
+  }));
 
-  // use storage to perform CRUD operations on the storage interface
-  // e.g. storage.insertUser(user) or storage.getUserByUsername(username)
+  // Swagger JSON endpoint
+  app.get("/api/swagger.json", (req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    res.send(swaggerSpec);
+  });
+
+  /**
+   * @swagger
+   * /auth/register:
+   *   post:
+   *     summary: Register a new user
+   *     tags: [Authentication]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             $ref: '#/components/schemas/RegisterRequest'
+   *     responses:
+   *       201:
+   *         description: User registered successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/AuthResponse'
+   *       400:
+   *         description: Validation error or email already exists
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/ValidationError'
+   */
+  app.post("/api/auth/register", async (req: Request, res: Response) => {
+    try {
+      const validationResult = registerSchema.safeParse(req.body);
+      
+      if (!validationResult.success) {
+        const errors = validationResult.error.errors.map(err => ({
+          field: err.path.join("."),
+          message: err.message
+        }));
+        return res.status(400).json({ error: "Validation failed", details: errors });
+      }
+
+      const { email, password, ...userData } = validationResult.data;
+
+      // Check if user already exists
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(400).json({ error: "Email already registered" });
+      }
+
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // Create user
+      const user = await storage.createUser({
+        ...userData,
+        email,
+        password: hashedPassword
+      });
+
+      // Generate session token
+      const token = randomUUID();
+      sessions.set(token, {
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+      });
+
+      // Return user without password
+      const { password: _, resetToken, resetTokenExpiry, ...userResponse } = user;
+
+      res.status(201).json({
+        message: "User registered successfully",
+        user: userResponse,
+        token
+      });
+    } catch (error) {
+      console.error("Registration error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  /**
+   * @swagger
+   * /auth/login:
+   *   post:
+   *     summary: Login with email and password
+   *     tags: [Authentication]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             $ref: '#/components/schemas/LoginRequest'
+   *     responses:
+   *       200:
+   *         description: Login successful
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/AuthResponse'
+   *       401:
+   *         description: Invalid credentials
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/ErrorResponse'
+   */
+  app.post("/api/auth/login", async (req: Request, res: Response) => {
+    try {
+      const validationResult = loginSchema.safeParse(req.body);
+      
+      if (!validationResult.success) {
+        const errors = validationResult.error.errors.map(err => ({
+          field: err.path.join("."),
+          message: err.message
+        }));
+        return res.status(400).json({ error: "Validation failed", details: errors });
+      }
+
+      const { email, password } = validationResult.data;
+
+      // Find user
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      // Verify password
+      const isValidPassword = await bcrypt.compare(password, user.password);
+      if (!isValidPassword) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      // Generate session token
+      const token = randomUUID();
+      sessions.set(token, {
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+      });
+
+      // Return user without password
+      const { password: _, resetToken, resetTokenExpiry, ...userResponse } = user;
+
+      res.json({
+        message: "Login successful",
+        user: userResponse,
+        token
+      });
+    } catch (error) {
+      console.error("Login error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  /**
+   * @swagger
+   * /auth/forgot-password:
+   *   post:
+   *     summary: Request password reset
+   *     tags: [Authentication]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             $ref: '#/components/schemas/ForgotPasswordRequest'
+   *     responses:
+   *       200:
+   *         description: Password reset email sent (if email exists)
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 message:
+   *                   type: string
+   *                 resetToken:
+   *                   type: string
+   *                   description: Reset token (in production, this would be sent via email)
+   *       400:
+   *         description: Validation error
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/ValidationError'
+   */
+  app.post("/api/auth/forgot-password", async (req: Request, res: Response) => {
+    try {
+      const validationResult = forgotPasswordSchema.safeParse(req.body);
+      
+      if (!validationResult.success) {
+        const errors = validationResult.error.errors.map(err => ({
+          field: err.path.join("."),
+          message: err.message
+        }));
+        return res.status(400).json({ error: "Validation failed", details: errors });
+      }
+
+      const { email } = validationResult.data;
+
+      // Find user
+      const user = await storage.getUserByEmail(email);
+      
+      // Always return success to prevent email enumeration
+      if (!user) {
+        return res.json({ 
+          message: "If the email exists, a password reset link has been sent" 
+        });
+      }
+
+      // Generate reset token
+      const resetToken = randomUUID();
+      const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+      await storage.updateUser(user.id, {
+        resetToken,
+        resetTokenExpiry
+      });
+
+      // In production, send email with reset link
+      // For demo purposes, return the token
+      res.json({ 
+        message: "If the email exists, a password reset link has been sent",
+        resetToken // In production, this would be sent via email
+      });
+    } catch (error) {
+      console.error("Forgot password error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  /**
+   * @swagger
+   * /auth/reset-password:
+   *   post:
+   *     summary: Reset password using token
+   *     tags: [Authentication]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             $ref: '#/components/schemas/ResetPasswordRequest'
+   *     responses:
+   *       200:
+   *         description: Password reset successful
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/SuccessResponse'
+   *       400:
+   *         description: Invalid or expired token
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/ErrorResponse'
+   */
+  app.post("/api/auth/reset-password", async (req: Request, res: Response) => {
+    try {
+      const validationResult = resetPasswordSchema.safeParse(req.body);
+      
+      if (!validationResult.success) {
+        const errors = validationResult.error.errors.map(err => ({
+          field: err.path.join("."),
+          message: err.message
+        }));
+        return res.status(400).json({ error: "Validation failed", details: errors });
+      }
+
+      const { token, newPassword } = validationResult.data;
+
+      // Find user by reset token
+      const user = await storage.getUserByResetToken(token);
+      if (!user || !user.resetTokenExpiry || user.resetTokenExpiry < new Date()) {
+        return res.status(400).json({ error: "Invalid or expired reset token" });
+      }
+
+      // Hash new password
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+      // Update password and clear reset token
+      await storage.updateUser(user.id, {
+        password: hashedPassword,
+        resetToken: null,
+        resetTokenExpiry: null
+      });
+
+      res.json({ message: "Password reset successfully" });
+    } catch (error) {
+      console.error("Reset password error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  /**
+   * @swagger
+   * /auth/change-password:
+   *   post:
+   *     summary: Change password for authenticated user
+   *     tags: [Authentication]
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             $ref: '#/components/schemas/ChangePasswordRequest'
+   *     responses:
+   *       200:
+   *         description: Password changed successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/SuccessResponse'
+   *       401:
+   *         description: Unauthorized or invalid current password
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/ErrorResponse'
+   */
+  app.post("/api/auth/change-password", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const validationResult = changePasswordSchema.safeParse(req.body);
+      
+      if (!validationResult.success) {
+        const errors = validationResult.error.errors.map(err => ({
+          field: err.path.join("."),
+          message: err.message
+        }));
+        return res.status(400).json({ error: "Validation failed", details: errors });
+      }
+
+      const { currentPassword, newPassword } = validationResult.data;
+      const userId = (req as any).userId;
+
+      // Get user
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(401).json({ error: "User not found" });
+      }
+
+      // Verify current password
+      const isValidPassword = await bcrypt.compare(currentPassword, user.password);
+      if (!isValidPassword) {
+        return res.status(401).json({ error: "Current password is incorrect" });
+      }
+
+      // Hash new password
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+      // Update password
+      await storage.updateUser(userId, {
+        password: hashedPassword
+      });
+
+      res.json({ message: "Password changed successfully" });
+    } catch (error) {
+      console.error("Change password error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  /**
+   * @swagger
+   * /auth/me:
+   *   get:
+   *     summary: Get current authenticated user
+   *     tags: [Authentication]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Current user info
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/User'
+   *       401:
+   *         description: Unauthorized
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/ErrorResponse'
+   */
+  app.get("/api/auth/me", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(401).json({ error: "User not found" });
+      }
+
+      const { password: _, resetToken, resetTokenExpiry, ...userResponse } = user;
+      res.json(userResponse);
+    } catch (error) {
+      console.error("Get user error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  /**
+   * @swagger
+   * /auth/logout:
+   *   post:
+   *     summary: Logout current user
+   *     tags: [Authentication]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Logout successful
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/SuccessResponse'
+   */
+  app.post("/api/auth/logout", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers["authorization"];
+      const token = authHeader && authHeader.split(" ")[1];
+      
+      if (token) {
+        sessions.delete(token);
+      }
+
+      res.json({ message: "Logged out successfully" });
+    } catch (error) {
+      console.error("Logout error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
 
   return httpServer;
 }

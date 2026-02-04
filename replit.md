@@ -1,8 +1,8 @@
-# Authentication API
+# Authentication & OneCard API
 
 ## Overview
 
-A full-stack authentication REST API application built with Express.js backend and React frontend. The system provides user registration, login, password management, and session-based authentication with Swagger API documentation.
+A backend-only REST API application built with Express.js providing user authentication and integration with OneCard Nigeria API for payment and recharge services. The system includes user registration, login, password management, and Swagger API documentation.
 
 ## User Preferences
 
@@ -10,45 +10,37 @@ Preferred communication style: Simple, everyday language.
 
 ## System Architecture
 
-### Frontend Architecture
-- **Framework**: React 18 with TypeScript
-- **Routing**: Wouter for client-side routing
-- **State Management**: TanStack React Query for server state
-- **UI Components**: shadcn/ui component library built on Radix UI primitives
-- **Styling**: Tailwind CSS with CSS variables for theming (light/dark mode support)
-- **Build Tool**: Vite with hot module replacement
-
 ### Backend Architecture
 - **Framework**: Express.js with TypeScript
 - **API Documentation**: Swagger UI with swagger-jsdoc for auto-generated OpenAPI docs
 - **Authentication**: Token-based session management with in-memory storage
 - **Password Security**: bcryptjs for password hashing
 - **Validation**: Zod schemas shared between client and server
+- **OneCard Integration**: AES-128-CBC encryption for secure API communication
 
 ### Data Storage
-- **ORM**: Drizzle ORM configured for PostgreSQL
-- **Schema Location**: `shared/schema.ts` contains database tables and Zod validation schemas
 - **Current Storage**: In-memory storage implementation (`MemStorage`) with interface for database migration
-- **Database Ready**: Drizzle config expects `DATABASE_URL` environment variable for PostgreSQL connection
+- **Database Ready**: Drizzle ORM configured for PostgreSQL
 
 ### Project Structure
 ```
-├── client/           # React frontend
-│   └── src/
-│       ├── components/ui/  # shadcn/ui components
-│       ├── pages/          # Route pages
-│       ├── hooks/          # Custom React hooks
-│       └── lib/            # Utilities and query client
+├── client/           # Simple landing page directing to API docs
 ├── server/           # Express backend
-│   ├── routes.ts     # API endpoints
+│   ├── routes.ts     # Authentication API endpoints
 │   ├── storage.ts    # Data access layer
-│   └── swagger.ts    # API documentation config
-├── shared/           # Shared code between client/server
+│   ├── swagger.ts    # API documentation config
+│   └── onecard/      # OneCard Nigeria API integration
+│       ├── encryption.ts  # AES encryption utilities
+│       ├── client.ts      # OneCard API client
+│       └── routes.ts      # OneCard API endpoints
+├── shared/           # Shared code
 │   └── schema.ts     # Database schema and validation
 └── migrations/       # Drizzle database migrations
 ```
 
 ### API Endpoints
+
+#### Authentication
 - `POST /api/auth/register` - User registration with firstName, lastName, universityName, matriculationNumber (optional), phoneNumber, email, password
 - `POST /api/auth/login` - User authentication with email and password
 - `POST /api/auth/forgot-password` - Password reset request (returns reset token)
@@ -56,8 +48,41 @@ Preferred communication style: Simple, everyday language.
 - `POST /api/auth/change-password` - Authenticated password change (requires Bearer token)
 - `GET /api/auth/me` - Get current user (authenticated, requires Bearer token)
 - `POST /api/auth/logout` - Logout current user (requires Bearer token)
+
+#### OneCard Nigeria Integration
+- `POST /api/onecard/login` - Authenticate with OneCard API (uses stored credentials)
+- `POST /api/onecard/logout` - End OneCard session
+- `GET /api/onecard/balance` - Get wallet balance
+- `GET /api/onecard/services` - Get available services (Mobile, Data, Electricity, Cable TV, etc.)
+- `GET /api/onecard/products` - Get products/operators (optional: ?service_id=1)
+- `GET /api/onecard/products/:productId/items` - Get product denominations
+- `GET /api/onecard/products/:productId/params` - Get product parameters
+- `GET /api/onecard/commissions` - Get commission rates
+- `POST /api/onecard/recharge` - Perform airtime/data recharge
+- `POST /api/onecard/bill/fetch` - Fetch bill information
+- `POST /api/onecard/bill/pay` - Pay bills (electricity, cable TV)
+- `GET /api/onecard/transactions` - Get transaction history
+
+#### Documentation
 - `GET /api-docs` - Swagger UI documentation
 - `GET /api/swagger.json` - OpenAPI JSON specification
+
+### OneCard Integration Details
+
+#### Required Secrets
+- `ONECARD_API_USERNAME` - API username from OneCard console
+- `ONECARD_API_PASSWORD` - API password from OneCard console
+
+#### Encryption Flow
+1. Login credentials are encrypted using AES-128-CBC with default key and salt
+2. Upon successful login, OneCard returns USER_TOKEN and AUTH_TOKEN
+3. AUTH_TOKEN is decrypted to extract new salt for subsequent requests
+4. All subsequent request parameters are encrypted with USER_TOKEN (as key) and new salt (as IV)
+
+#### Important Notes
+- IP address must be whitelisted in OneCard console at https://agent.onecardnigeria.com
+- Session tokens expire after a period defined by OneCard API
+- Session management is automatic - endpoints will re-login if session expires
 
 ### Build Process
 - Development: Vite dev server with Express middleware
@@ -65,20 +90,15 @@ Preferred communication style: Simple, everyday language.
 
 ## External Dependencies
 
-### Database
-- **PostgreSQL**: Primary database (requires `DATABASE_URL` environment variable)
-- **Drizzle Kit**: Database migrations via `npm run db:push`
+### OneCard Nigeria API
+- **Base URL**: https://api.onecardnigeria.com/rest
+- **Services**: Mobile top-ups, Data bundles, Electricity bills, Cable TV subscriptions, E-vouchers
+- **Documentation**: https://documenter.getpostman.com/view/7980428/UVsQsiii
 
 ### Authentication & Security
 - **bcryptjs**: Password hashing
-- **express-session**: Session management (configured for connect-pg-simple)
+- **crypto**: Node.js built-in for AES encryption
 
 ### API Documentation
 - **swagger-jsdoc**: Generate OpenAPI specs from JSDoc comments
 - **swagger-ui-express**: Serve interactive API documentation
-
-### UI Libraries
-- **Radix UI**: Accessible component primitives
-- **Tailwind CSS**: Utility-first CSS framework
-- **Lucide React**: Icon library
-- **class-variance-authority**: Component variant management

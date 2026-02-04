@@ -12,6 +12,7 @@ import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./swagger";
+import { registerOneCardRoutes } from "./onecard/routes";
 
 // Simple session store for demo purposes
 const sessions: Map<string, { userId: string; expiresAt: Date }> = new Map();
@@ -481,6 +482,9 @@ export async function registerRoutes(
       res.status(500).json({ error: "Internal server error" });
     }
   });
+
+  // Register OneCard Nigeria API routes
+  registerOneCardRoutes(app);
 
   return httpServer;
 }

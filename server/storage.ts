@@ -37,6 +37,7 @@ export class MemStorage implements IStorage {
     const user: User = { 
       ...insertUser, 
       id,
+      matriculationNumber: insertUser.matriculationNumber ?? null,
       resetToken: null,
       resetTokenExpiry: null
     };

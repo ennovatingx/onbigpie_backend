@@ -49,13 +49,15 @@ Preferred communication style: Simple, everyday language.
 ```
 
 ### API Endpoints
-- `POST /api/register` - User registration
-- `POST /api/login` - User authentication
-- `POST /api/forgot-password` - Password reset request
-- `POST /api/reset-password` - Password reset with token
-- `POST /api/change-password` - Authenticated password change
-- `GET /api/me` - Get current user (authenticated)
+- `POST /api/auth/register` - User registration with firstName, lastName, universityName, matriculationNumber (optional), phoneNumber, email, password
+- `POST /api/auth/login` - User authentication with email and password
+- `POST /api/auth/forgot-password` - Password reset request (returns reset token)
+- `POST /api/auth/reset-password` - Password reset with token
+- `POST /api/auth/change-password` - Authenticated password change (requires Bearer token)
+- `GET /api/auth/me` - Get current user (authenticated, requires Bearer token)
+- `POST /api/auth/logout` - Logout current user (requires Bearer token)
 - `GET /api-docs` - Swagger UI documentation
+- `GET /api/swagger.json` - OpenAPI JSON specification
 
 ### Build Process
 - Development: Vite dev server with Express middleware

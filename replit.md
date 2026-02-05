@@ -20,8 +20,8 @@ Preferred communication style: Simple, everyday language.
 - **OneBigPie Integration**: Header-based authentication for user/voucher management
 
 ### Data Storage
-- **Current Storage**: In-memory storage implementation (`MemStorage`) with interface for database migration
-- **Database Ready**: Drizzle ORM configured for PostgreSQL
+- **Database**: PostgreSQL with Drizzle ORM (`DatabaseStorage` implementation)
+- **User Table**: Stores registered users with UUID primary keys
 
 ### Project Structure
 ```

@@ -36,13 +36,26 @@ async function makeRequest(
     requestHeaders["Content-Type"] = "application/x-www-form-urlencoded";
   }
 
-  const response = await fetch(`${ONECARD_BASE_URL}${endpoint}`, {
+  const url = `${ONECARD_BASE_URL}${endpoint}`;
+  
+  console.log("=== OneCard API Request ===");
+  console.log("URL:", url);
+  console.log("Method:", method);
+  console.log("Headers:", JSON.stringify(requestHeaders));
+  console.log("Body:", body || "(no body)");
+
+  const response = await fetch(url, {
     method,
     headers: requestHeaders,
     body,
   });
 
+  console.log("=== OneCard API Response ===");
+  console.log("Status:", response.status, response.statusText);
+  console.log("Response Headers:", JSON.stringify(Object.fromEntries(response.headers.entries())));
+
   const text = await response.text();
+  console.log("Response Body (raw):", text);
   
   try {
     return JSON.parse(text);

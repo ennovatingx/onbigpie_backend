@@ -4,7 +4,9 @@ const DEFAULT_KEY = "61f22f21-1fdc-45f1-acee-2a8a2bfc";
 const DEFAULT_SALT = "22d2b48279af3df6";
 
 function deriveKey(key: string): Buffer {
-  return Buffer.from(key.slice(0, 16), "utf8");
+  const keyBuffer = Buffer.alloc(32, 0);
+  Buffer.from(key, "utf8").copy(keyBuffer);
+  return keyBuffer;
 }
 
 function deriveIV(salt: string): Buffer {
@@ -19,7 +21,7 @@ export function encrypt(
   const keyBuffer = deriveKey(key);
   const iv = deriveIV(salt);
   
-  const cipher = crypto.createCipheriv("aes-128-cbc", keyBuffer, iv);
+  const cipher = crypto.createCipheriv("aes-256-cbc", keyBuffer, iv);
   let encrypted = cipher.update(plaintext, "utf8");
   encrypted = Buffer.concat([encrypted, cipher.final()]);
   
@@ -41,7 +43,7 @@ export function decrypt(
     inputBuffer = Buffer.from(ciphertext, "hex");
   }
   
-  const decipher = crypto.createDecipheriv("aes-128-cbc", keyBuffer, iv);
+  const decipher = crypto.createDecipheriv("aes-256-cbc", keyBuffer, iv);
   let decrypted = decipher.update(inputBuffer);
   decrypted = Buffer.concat([decrypted, decipher.final()]);
   

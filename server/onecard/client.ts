@@ -88,14 +88,11 @@ export async function oneCardLogin(): Promise<OneCardSession> {
         console.log("OneCard login decrypted JSON:", JSON.stringify(response));
       } catch (e: any) {
         console.error("Decryption failed:", e.message);
-        // The encrypted response likely indicates an authentication error
-        // This could mean invalid credentials or the account is not properly configured
+        console.log("Raw encrypted response for debugging:", response);
         throw new Error(
-          "Unable to authenticate with OneCard API. This could be due to: " +
-          "1) Invalid API credentials, " +
-          "2) API account not properly configured, or " +
-          "3) IP address not whitelisted in OneCard console. " +
-          "Please verify your credentials at https://agent.onecardnigeria.com"
+          "OneCard API returned an encrypted response that could not be decrypted. " +
+          "This usually means: 1) IP address not whitelisted in OneCard console at https://agent.onecardnigeria.com, " +
+          "2) Invalid API credentials, or 3) API account not properly configured."
         );
       }
     }

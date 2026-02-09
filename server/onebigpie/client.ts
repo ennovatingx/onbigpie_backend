@@ -88,10 +88,12 @@ export class OneBigPieError extends Error {
 async function makeRequest<T>(
   endpoint: string,
   method: "GET" | "POST" = "GET",
-  body?: Record<string, string>
+  body?: Record<string, string>,
 ): Promise<T> {
   const url = `${ONEBIGPIE_BASE_URL}${endpoint}`;
-  
+
+  console.log(`OneBigPie API ${method} ${url}`);
+
   const headers: Record<string, string> = {
     [ONEBIGPIE_HEADER_KEY]: ONEBIGPIE_HEADER_VALUE,
   };
@@ -113,11 +115,14 @@ async function makeRequest<T>(
   console.log(`OneBigPie API ${method} ${endpoint}`);
 
   const response = await fetch(url, options);
-  
+
   if (!response.ok) {
     const errorText = await response.text();
     console.error(`OneBigPie API error: ${response.status} - ${errorText}`);
-    throw new OneBigPieError(`OneBigPie API error: ${errorText}`, response.status);
+    throw new OneBigPieError(
+      `OneBigPie API error: ${errorText}`,
+      response.status,
+    );
   }
 
   const data = await response.json();
@@ -128,7 +133,7 @@ export async function createUser(
   email: string,
   firstname: string,
   lastname: string,
-  phone: string
+  phone: string,
 ): Promise<{ status: boolean; message: string; data: OneBigPieUser }> {
   return makeRequest("/create-user", "POST", {
     email,
@@ -148,7 +153,7 @@ export async function fetchUsers(): Promise<{
 
 export async function subscribeUser(
   email: string,
-  voucher: string
+  voucher: string,
 ): Promise<{ success: string; balance: SubscriptionBalance }> {
   return makeRequest("/subscribe-user", "POST", {
     email,

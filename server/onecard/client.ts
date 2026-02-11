@@ -119,7 +119,7 @@ export async function oneCardLogin(): Promise<OneCardSession> {
 
   const { USER_TOKEN, AUTH_TOKEN, EXPIRE_AT } = response.RESPONSE_DATA;
 
-  const { userId, newSalt } = decryptAuthToken(AUTH_TOKEN);
+  const { userId, newSalt } = decryptAuthToken(AUTH_TOKEN, USER_TOKEN);
 
   currentSession = {
     userToken: USER_TOKEN,
@@ -156,13 +156,27 @@ async function authenticatedRequest(
     }
   }
 
-  const response = await makeRequest(endpoint, {
+  let response = await makeRequest(endpoint, {
     headers: {
       token: session.userToken,
       authtoken: session.authToken,
     },
     formData: Object.keys(encryptedParams).length > 0 ? encryptedParams : undefined,
   });
+
+  if (typeof response === "string") {
+    try {
+      const decrypted = decrypt(response, session.userToken, session.newSalt);
+      response = JSON.parse(decrypted);
+    } catch {
+      try {
+        const decrypted = decrypt(response);
+        response = JSON.parse(decrypted);
+      } catch {
+        return response;
+      }
+    }
+  }
 
   return response;
 }

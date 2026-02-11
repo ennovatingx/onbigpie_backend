@@ -60,8 +60,8 @@ export function encryptLoginCredentials(
   };
 }
 
-export function decryptAuthToken(authToken: string): { userId: string; newSalt: string } {
-  const decryptedToken = decrypt(authToken);
+export function decryptAuthToken(authToken: string, userToken: string): { userId: string; newSalt: string } {
+  const decryptedToken = decrypt(authToken, userToken);
   const parts = decryptedToken.split("~");
   
   if (parts.length < 2) {

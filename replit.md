@@ -86,10 +86,12 @@ Preferred communication style: Simple, everyday language.
 - `ONECARD_API_PASSWORD` - API password from OneCard console
 
 #### Encryption Flow
-1. Login credentials are encrypted using AES-128-CBC with default key and salt
+1. Login credentials are encrypted using AES-256-CBC with default key (padded to 32 bytes) and default salt (16 bytes IV)
 2. Upon successful login, OneCard returns USER_TOKEN and AUTH_TOKEN
-3. AUTH_TOKEN is decrypted to extract new salt for subsequent requests
-4. All subsequent request parameters are encrypted with USER_TOKEN (as key) and new salt (as IV)
+3. AUTH_TOKEN is decrypted using USER_TOKEN as key and default salt as IV (AES-256-CBC)
+4. Decrypted AUTH_TOKEN is split by "~" - second part becomes the NEW SALT for subsequent requests
+5. All subsequent request parameters are encrypted with USER_TOKEN (as key, padded to 32 bytes) and new salt (as IV)
+6. All subsequent API responses are also encrypted and must be decrypted with USER_TOKEN and new salt
 
 #### Important Notes
 - IP address must be whitelisted in OneCard console at https://agent.onecardnigeria.com

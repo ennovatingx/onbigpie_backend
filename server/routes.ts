@@ -14,6 +14,7 @@ import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./swagger";
 import { registerOneCardRoutes } from "./onecard/routes";
 import oneBigPieRoutes from "./onebigpie/routes";
+import { createUser as createOneBigPieUser, fetchUserByEmail as fetchOneBigPieUser } from "./onebigpie/client";
 
 // Simple session store for demo purposes
 const sessions: Map<string, { userId: string; expiresAt: Date }> = new Map();
@@ -119,9 +120,30 @@ export async function registerRoutes(
       // Return user without password
       const { password: _, resetToken, resetTokenExpiry, ...userResponse } = user;
 
+      let oneBigPieUser = null;
+      try {
+        const obpResult = await createOneBigPieUser(
+          email,
+          validationResult.data.firstName,
+          validationResult.data.lastName,
+          validationResult.data.phoneNumber,
+          password,
+        );
+        if (obpResult.status && obpResult.data) {
+          oneBigPieUser = obpResult.data;
+        }
+      } catch (err) {
+        console.error("OneBigPie user creation failed (non-blocking):", err);
+      }
+
+      if (!oneBigPieUser) {
+        oneBigPieUser = await fetchOneBigPieUser(email);
+      }
+
       res.status(201).json({
         message: "User registered successfully",
         user: userResponse,
+        oneBigPieUser,
         token
       });
     } catch (error) {
@@ -192,9 +214,12 @@ export async function registerRoutes(
       // Return user without password
       const { password: _, resetToken, resetTokenExpiry, ...userResponse } = user;
 
+      const oneBigPieUser = await fetchOneBigPieUser(email);
+
       res.json({
         message: "Login successful",
         user: userResponse,
+        oneBigPieUser,
         token
       });
     } catch (error) {
@@ -423,11 +448,18 @@ export async function registerRoutes(
    *       - bearerAuth: []
    *     responses:
    *       200:
-   *         description: Current user info
+   *         description: Current user info with linked OneBigPie data
    *         content:
    *           application/json:
    *             schema:
-   *               $ref: '#/components/schemas/User'
+   *               type: object
+   *               properties:
+   *                 user:
+   *                   $ref: '#/components/schemas/User'
+   *                 oneBigPieUser:
+   *                   oneOf:
+   *                     - $ref: '#/components/schemas/OneBigPieUser'
+   *                     - type: 'null'
    *       401:
    *         description: Unauthorized
    *         content:
@@ -445,7 +477,13 @@ export async function registerRoutes(
       }
 
       const { password: _, resetToken, resetTokenExpiry, ...userResponse } = user;
-      res.json(userResponse);
+
+      const oneBigPieUser = await fetchOneBigPieUser(user.email);
+
+      res.json({
+        user: userResponse,
+        oneBigPieUser,
+      });
     } catch (error) {
       console.error("Get user error:", error);
       res.status(500).json({ error: "Internal server error" });

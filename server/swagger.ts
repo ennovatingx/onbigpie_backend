@@ -93,6 +93,13 @@ const options: swaggerJsdoc.Options = {
           properties: {
             message: { type: "string" },
             user: { $ref: "#/components/schemas/User" },
+            oneBigPieUser: {
+              oneOf: [
+                { $ref: "#/components/schemas/OneBigPieUser" },
+                { type: "null" },
+              ],
+              description: "Linked OneBigPie user data (null if not found)",
+            },
             token: { type: "string" },
           },
         },

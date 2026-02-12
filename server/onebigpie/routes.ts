@@ -37,12 +37,12 @@ function handleError(res: Response, error: unknown) {
  */
 router.post("/users", async (req: Request, res: Response) => {
   try {
-    const { email, firstname, lastname, phone } = req.body;
+    const { email, firstname, lastname, phone, password } = req.body;
 
-    if (!email || !firstname || !lastname || !phone) {
+    if (!email || !firstname || !lastname || !phone || !password) {
       return res.status(400).json({
         success: false,
-        error: "Missing required fields: email, firstname, lastname, phone",
+        error: "Missing required fields: email, firstname, lastname, phone, password",
       });
     }
 
@@ -50,7 +50,8 @@ router.post("/users", async (req: Request, res: Response) => {
       email,
       firstname,
       lastname,
-      phone
+      phone,
+      password
     );
     res.json(result);
   } catch (error) {

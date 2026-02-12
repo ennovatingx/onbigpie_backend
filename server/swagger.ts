@@ -423,12 +423,13 @@ const options: swaggerJsdoc.Options = {
         },
         OneBigPieCreateUserRequest: {
           type: "object",
-          required: ["email", "firstname", "lastname", "phone"],
+          required: ["email", "firstname", "lastname", "phone", "password"],
           properties: {
             email: { type: "string", format: "email", example: "john@example.com" },
             firstname: { type: "string", example: "John" },
             lastname: { type: "string", example: "Doe" },
             phone: { type: "string", example: "08012345678" },
+            password: { type: "string", example: "123@@abc" },
           },
         },
         OneBigPieUser: {

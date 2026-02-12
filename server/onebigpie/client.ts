@@ -134,12 +134,14 @@ export async function createUser(
   firstname: string,
   lastname: string,
   phone: string,
+  password: string,
 ): Promise<{ status: boolean; message: string; data: OneBigPieUser }> {
   return makeRequest("/create-user", "POST", {
     email,
     firstname,
     lastname,
     phone,
+    password,
   });
 }
 

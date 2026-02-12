@@ -16,12 +16,16 @@ Preferred communication style: Simple, everyday language.
 - **Authentication**: Token-based session management with in-memory storage
 - **Password Security**: bcryptjs for password hashing
 - **Validation**: Zod schemas shared between client and server
-- **OneCard Integration**: AES-128-CBC encryption for secure API communication
+- **OneCard Integration**: AES-256-CBC encryption for secure API communication
 - **OneBigPie Integration**: Header-based authentication for user/voucher management
+- **Paystack Integration**: Payment gateway for wallet funding (card, bank, USSD, bank transfer)
+- **Wallet System**: PostgreSQL-backed wallet with balance tracking and transaction history
 
 ### Data Storage
 - **Database**: PostgreSQL with Drizzle ORM (`DatabaseStorage` implementation)
 - **User Table**: Stores registered users with UUID primary keys
+- **Wallets Table**: One wallet per user, tracks balance
+- **Wallet Transactions Table**: Records all credits/debits with references and status
 
 ### Project Structure
 ```
@@ -34,9 +38,12 @@ Preferred communication style: Simple, everyday language.
 │   │   ├── encryption.ts  # AES encryption utilities
 │   │   ├── client.ts      # OneCard API client
 │   │   └── routes.ts      # OneCard API endpoints
-│   └── onebigpie/    # OneBigPie API integration
-│       ├── client.ts      # OneBigPie API client
-│       └── routes.ts      # OneBigPie API endpoints
+│   ├── onebigpie/    # OneBigPie API integration
+│   │   ├── client.ts      # OneBigPie API client
+│   │   └── routes.ts      # OneBigPie API endpoints
+│   └── paystack/     # Paystack + Wallet integration
+│       ├── client.ts      # Paystack API client
+│       └── routes.ts      # Wallet API endpoints
 ├── shared/           # Shared code
 │   └── schema.ts     # Database schema and validation
 └── migrations/       # Drizzle database migrations
@@ -75,6 +82,14 @@ Preferred communication style: Simple, everyday language.
 - `POST /api/onebigpie/vouchers/generate` - Generate vouchers
 - `GET /api/onebigpie/vouchers` - Fetch all vouchers
 
+#### Wallet (Paystack)
+- `GET /api/wallet/balance` - Get wallet balance (authenticated)
+- `POST /api/wallet/fund` - Initialize wallet funding via Paystack (authenticated)
+- `GET /api/wallet/verify/:reference` - Verify payment and credit wallet (authenticated)
+- `POST /api/wallet/deduct` - Deduct from wallet balance (authenticated)
+- `GET /api/wallet/transactions` - Get wallet transaction history (authenticated)
+- `POST /api/wallet/webhook` - Paystack webhook for automatic payment confirmation (public)
+
 #### Documentation
 - `GET /api-docs` - Swagger UI documentation
 - `GET /api/swagger.json` - OpenAPI JSON specification
@@ -108,6 +123,30 @@ Preferred communication style: Simple, everyday language.
 - User creation and management
 - Voucher generation and tracking
 - Subscription management with vouchers
+
+### Paystack Integration Details
+
+#### Required Secrets
+- `PAYSTACK_SECRET_KEY` - Paystack secret key from Dashboard > Settings > API Keys
+
+#### Wallet Funding Flow
+1. User calls `POST /api/wallet/fund` with amount in Naira (minimum 100)
+2. Backend initializes Paystack transaction and returns `authorizationUrl`
+3. User is redirected to Paystack checkout to complete payment
+4. Payment confirmed via webhook (`POST /api/wallet/webhook`) or manual verification (`GET /api/wallet/verify/:reference`)
+5. Wallet balance is credited upon successful payment
+
+#### Wallet Security
+- Atomic wallet crediting via `atomicCreditWallet` prevents double-credits using DB transactions
+- Transaction status must be "pending" before crediting (prevents replay attacks)
+- Amount validation: paid amount must match stored transaction amount
+- Webhook signature verification using HMAC SHA-512
+- Conditional auth middleware: webhook endpoint is public, all other wallet endpoints require Bearer token
+
+#### User Linking
+- OneBigPie users are linked to main auth users via email matching
+- During registration, a corresponding OneBigPie user is auto-created
+- Login and /auth/me responses include the linked OneBigPie user data
 
 ### Build Process
 - Development: Vite dev server with Express middleware

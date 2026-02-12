@@ -14,6 +14,7 @@ import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./swagger";
 import { registerOneCardRoutes } from "./onecard/routes";
 import oneBigPieRoutes from "./onebigpie/routes";
+import walletRoutes from "./paystack/routes";
 import { createUser as createOneBigPieUser, fetchUserByEmail as fetchOneBigPieUser } from "./onebigpie/client";
 
 // Simple session store for demo purposes
@@ -527,6 +528,15 @@ export async function registerRoutes(
 
   // Register OneBigPie API routes
   app.use("/api/onebigpie", oneBigPieRoutes);
+
+  // Register Wallet/Paystack routes
+  // Wallet routes handle their own auth - webhook is public, others check authenticateToken
+  app.use("/api/wallet", (req, res, next) => {
+    if (req.path === "/webhook" && req.method === "POST") {
+      return next();
+    }
+    return authenticateToken(req, res, next);
+  }, walletRoutes);
 
   return httpServer;
 }

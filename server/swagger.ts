@@ -428,6 +428,81 @@ const options: swaggerJsdoc.Options = {
             },
           },
         },
+        WalletBalanceResponse: {
+          type: "object",
+          properties: {
+            balance: { type: "string", example: "5000.00" },
+            updatedAt: { type: "string", format: "date-time" },
+          },
+        },
+        FundWalletRequest: {
+          type: "object",
+          required: ["amount"],
+          properties: {
+            amount: { type: "number", minimum: 100, example: 1000, description: "Amount in Naira (minimum 100)" },
+            callbackUrl: { type: "string", format: "uri", description: "URL to redirect after payment" },
+          },
+        },
+        FundWalletResponse: {
+          type: "object",
+          properties: {
+            message: { type: "string", example: "Payment initialized" },
+            reference: { type: "string", example: "WF-abc123" },
+            authorizationUrl: { type: "string", format: "uri", description: "Paystack checkout URL - redirect user here to pay" },
+            accessCode: { type: "string", description: "Paystack access code for inline payment" },
+          },
+        },
+        VerifyPaymentResponse: {
+          type: "object",
+          properties: {
+            message: { type: "string" },
+            status: { type: "string", enum: ["success", "failed", "pending", "abandoned"] },
+            amountCredited: { type: "string", example: "1000.00" },
+            balance: { type: "string", example: "6000.00" },
+            gatewayResponse: { type: "string" },
+          },
+        },
+        DeductWalletRequest: {
+          type: "object",
+          required: ["amount", "description"],
+          properties: {
+            amount: { type: "number", minimum: 1, example: 500, description: "Amount to deduct in Naira" },
+            description: { type: "string", example: "MTN Airtime purchase" },
+            reference: { type: "string", description: "Optional custom reference" },
+          },
+        },
+        DeductWalletResponse: {
+          type: "object",
+          properties: {
+            message: { type: "string", example: "Deduction successful" },
+            reference: { type: "string" },
+            amountDeducted: { type: "string", example: "500.00" },
+            balance: { type: "string", example: "5500.00" },
+          },
+        },
+        WalletTransaction: {
+          type: "object",
+          properties: {
+            id: { type: "integer" },
+            walletId: { type: "integer" },
+            userId: { type: "string" },
+            type: { type: "string", enum: ["credit", "debit"] },
+            amount: { type: "string", example: "1000.00" },
+            reference: { type: "string" },
+            status: { type: "string", enum: ["pending", "success", "failed"] },
+            description: { type: "string" },
+            createdAt: { type: "string", format: "date-time" },
+          },
+        },
+        WalletTransactionsResponse: {
+          type: "object",
+          properties: {
+            transactions: {
+              type: "array",
+              items: { $ref: "#/components/schemas/WalletTransaction" },
+            },
+          },
+        },
         OneBigPieCreateUserRequest: {
           type: "object",
           required: ["email", "firstname", "lastname", "phone", "password"],
@@ -612,9 +687,13 @@ const options: swaggerJsdoc.Options = {
         name: "OneBigPie",
         description: "OneBigPie user management and voucher subscription services",
       },
+      {
+        name: "Wallet",
+        description: "Wallet management with Paystack payment integration - fund wallet, check balance, deduct, and view transactions",
+      },
     ],
   },
-  apis: ["./server/routes.ts", "./server/onecard/routes.ts", "./server/onebigpie/routes.ts"],
+  apis: ["./server/routes.ts", "./server/onecard/routes.ts", "./server/onebigpie/routes.ts", "./server/paystack/routes.ts"],
 };
 
 export const swaggerSpec = swaggerJsdoc(options);

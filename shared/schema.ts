@@ -51,6 +51,27 @@ export const resetPasswordSchema = z.object({
   newPassword: z.string().min(8, "New password must be at least 8 characters"),
 });
 
+export const paystackCustomers = pgTable("paystack_customers", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().unique().references(() => users.id),
+  customerCode: text("customer_code").notNull().unique(),
+  paystackCustomerId: integer("paystack_customer_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const dedicatedAccounts = pgTable("dedicated_accounts", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().unique().references(() => users.id),
+  customerCode: text("customer_code").notNull(),
+  bankName: text("bank_name").notNull(),
+  accountName: text("account_name").notNull(),
+  accountNumber: text("account_number").notNull().unique(),
+  bankId: integer("bank_id"),
+  active: integer("active").notNull().default(1),
+  assignedAt: timestamp("assigned_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const wallets = pgTable("wallets", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull().unique().references(() => users.id),
@@ -85,6 +106,8 @@ export const deductWalletSchema = z.object({
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
+export type PaystackCustomer = typeof paystackCustomers.$inferSelect;
+export type DedicatedAccount = typeof dedicatedAccounts.$inferSelect;
 export type Wallet = typeof wallets.$inferSelect;
 export type WalletTransaction = typeof walletTransactions.$inferSelect;
 export type RegisterInput = z.infer<typeof registerSchema>;

@@ -93,6 +93,151 @@ export async function verifyTransaction(
   return data as PaystackVerifyResponse;
 }
 
+export interface PaystackCustomerResponse {
+  status: boolean;
+  message: string;
+  data: {
+    email: string;
+    customer_code: string;
+    id: number;
+    integration: number;
+    domain: string;
+    first_name: string | null;
+    last_name: string | null;
+    phone: string | null;
+    identified: boolean;
+    createdAt: string;
+    updatedAt: string;
+  };
+}
+
+export interface PaystackDVAResponse {
+  status: boolean;
+  message: string;
+  data: {
+    bank: {
+      name: string;
+      id: number;
+      slug: string;
+    };
+    account_name: string;
+    account_number: string;
+    assigned: boolean;
+    currency: string;
+    metadata: Record<string, any> | null;
+    active: boolean;
+    id: number;
+    created_at: string;
+    updated_at: string;
+    assignment: {
+      integration: number;
+      assignee_id: number;
+      assignee_type: string;
+      expired: boolean;
+      account_type: string;
+      assigned_at: string;
+    };
+    customer: {
+      id: number;
+      first_name: string | null;
+      last_name: string | null;
+      email: string;
+      customer_code: string;
+      phone: string | null;
+    };
+  };
+}
+
+export async function createPaystackCustomer(
+  email: string,
+  firstName: string,
+  lastName: string,
+  phone: string,
+): Promise<PaystackCustomerResponse> {
+  const response = await fetch(`${PAYSTACK_BASE_URL}/customer`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${getSecretKey()}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      email,
+      first_name: firstName,
+      last_name: lastName,
+      phone,
+    }),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(`Paystack customer error: ${data.message || response.statusText}`);
+  }
+  return data as PaystackCustomerResponse;
+}
+
+export async function createDedicatedAccount(
+  customerCode: string,
+  preferredBank?: string,
+): Promise<PaystackDVAResponse> {
+  const body: Record<string, any> = {
+    customer: customerCode,
+  };
+  if (preferredBank) body.preferred_bank = preferredBank;
+
+  const response = await fetch(`${PAYSTACK_BASE_URL}/dedicated_account`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${getSecretKey()}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(`Paystack DVA error: ${data.message || response.statusText}`);
+  }
+  return data as PaystackDVAResponse;
+}
+
+export async function fetchDedicatedAccount(
+  dedicatedAccountId: number,
+): Promise<PaystackDVAResponse> {
+  const response = await fetch(
+    `${PAYSTACK_BASE_URL}/dedicated_account/${dedicatedAccountId}`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${getSecretKey()}`,
+      },
+    },
+  );
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(`Paystack DVA fetch error: ${data.message || response.statusText}`);
+  }
+  return data as PaystackDVAResponse;
+}
+
+export async function listAvailableProviders(): Promise<any> {
+  const response = await fetch(
+    `${PAYSTACK_BASE_URL}/dedicated_account/available_providers`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${getSecretKey()}`,
+      },
+    },
+  );
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(`Paystack providers error: ${data.message || response.statusText}`);
+  }
+  return data;
+}
+
 export function verifyWebhookSignature(
   body: string,
   signature: string,

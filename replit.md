@@ -89,6 +89,9 @@ Preferred communication style: Simple, everyday language.
 - `POST /api/wallet/deduct` - Deduct from wallet balance (authenticated)
 - `GET /api/wallet/transactions` - Get wallet transaction history (authenticated)
 - `POST /api/wallet/webhook` - Paystack webhook for automatic payment confirmation (public)
+- `POST /api/wallet/account` - Create a dedicated bank account number for the user (authenticated)
+- `GET /api/wallet/account` - Get user's dedicated bank account details (authenticated)
+- `GET /api/wallet/providers` - List available bank providers for dedicated accounts (authenticated)
 
 #### Documentation
 - `GET /api-docs` - Swagger UI documentation
@@ -142,6 +145,16 @@ Preferred communication style: Simple, everyday language.
 - Amount validation: paid amount must match stored transaction amount
 - Webhook signature verification using HMAC SHA-512
 - Conditional auth middleware: webhook endpoint is public, all other wallet endpoints require Bearer token
+
+#### Dedicated Virtual Accounts (DVA)
+- Each user can request a permanent bank account number via `POST /api/wallet/account`
+- Paystack customer is auto-created if not existing
+- Transfers to DVA account automatically credit the user's wallet via webhook
+- DVA creation is async - webhook `dedicatedaccount.assign.success` stores account details
+- Bank transfer payments via DVA arrive as `charge.success` webhook with `channel: "dedicated_nuban"`
+- Requires DVA feature to be enabled on the Paystack business account
+- Supported banks: Wema Bank, Paystack-Titan (use "test-bank" in test mode)
+- Database tables: `paystack_customers` (stores customer codes), `dedicated_accounts` (stores account details)
 
 #### User Linking
 - OneBigPie users are linked to main auth users via email matching

@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { randomUUID } from "crypto";
 import { storage } from "../storage";
 import { fundWalletSchema, deductWalletSchema } from "@shared/schema";
-import { initializeTransaction, verifyTransaction, verifyWebhookSignature } from "./client";
+import { initializeTransaction, verifyTransaction, verifyWebhookSignature, createPaystackCustomer, createDedicatedAccount, listAvailableProviders } from "./client";
 
 const router = Router();
 
@@ -247,18 +247,80 @@ router.post("/webhook", async (req: Request, res: Response) => {
       const { reference, amount } = event.data;
 
       const existingTx = await storage.getWalletTransactionByReference(reference);
-      if (!existingTx || existingTx.status !== "pending") {
-        return res.sendStatus(200);
-      }
+      if (existingTx && existingTx.status === "pending") {
+        const paidAmountNaira = (amount / 100).toFixed(2);
+        if (paidAmountNaira !== existingTx.amount) {
+          console.error(`Webhook amount mismatch for ${reference}: expected ${existingTx.amount}, got ${paidAmountNaira}`);
+          await storage.updateWalletTransactionStatus(reference, "failed");
+        } else {
+          await storage.atomicCreditWallet(reference, existingTx.userId, paidAmountNaira);
+        }
+      } else if (!existingTx && event.data.channel === "dedicated_nuban") {
+        const chargeId = event.data.id;
+        if (!chargeId) {
+          console.error("DVA webhook missing charge id");
+          return res.sendStatus(200);
+        }
 
-      const paidAmountNaira = (amount / 100).toFixed(2);
-      if (paidAmountNaira !== existingTx.amount) {
-        console.error(`Webhook amount mismatch for ${reference}: expected ${existingTx.amount}, got ${paidAmountNaira}`);
-        await storage.updateWalletTransactionStatus(reference, "failed");
-        return res.sendStatus(200);
-      }
+        const dvaRef = `DVA-${chargeId}`;
+        const dupCheck = await storage.getWalletTransactionByReference(dvaRef);
+        if (dupCheck) {
+          return res.sendStatus(200);
+        }
 
-      await storage.atomicCreditWallet(reference, existingTx.userId, paidAmountNaira);
+        const customerCode = event.data.customer?.customer_code;
+        if (customerCode) {
+          const paystackCust = await storage.getPaystackCustomerByCustomerCode(customerCode);
+          if (paystackCust) {
+            const amountNaira = (amount / 100).toFixed(2);
+            const wallet = await storage.getOrCreateWallet(paystackCust.userId);
+
+            await storage.createWalletTransaction({
+              walletId: wallet.id,
+              userId: paystackCust.userId,
+              type: "credit",
+              amount: amountNaira,
+              reference: dvaRef,
+              status: "pending",
+              description: "Wallet funding via bank transfer (DVA)",
+              metadata: JSON.stringify({ paystack_charge_id: chargeId, paystack_reference: reference, channel: "dedicated_nuban" }),
+            });
+
+            await storage.atomicCreditWallet(dvaRef, paystackCust.userId, amountNaira);
+          }
+        }
+      }
+    }
+
+    if (event.event === "dedicatedaccount.assign.success") {
+      const data = event.data;
+      const customerCode = data.customer?.customer_code;
+      if (customerCode && data.dedicated_account) {
+        const paystackCustomer = await storage.getPaystackCustomerByCustomerCode(customerCode);
+        if (paystackCustomer) {
+          const existingAccount = await storage.getDedicatedAccountByUserId(paystackCustomer.userId);
+          if (existingAccount) {
+            await storage.updateDedicatedAccount(paystackCustomer.userId, {
+              bankName: data.dedicated_account.bank?.name || existingAccount.bankName,
+              accountName: data.dedicated_account.account_name || existingAccount.accountName,
+              accountNumber: data.dedicated_account.account_number || existingAccount.accountNumber,
+              bankId: data.dedicated_account.bank?.id || existingAccount.bankId,
+              active: 1,
+              assignedAt: data.dedicated_account.assignment?.assigned_at ? new Date(data.dedicated_account.assignment.assigned_at) : new Date(),
+            });
+          } else {
+            await storage.createDedicatedAccount({
+              userId: paystackCustomer.userId,
+              customerCode,
+              bankName: data.dedicated_account.bank?.name || "Unknown",
+              accountName: data.dedicated_account.account_name || "Unknown",
+              accountNumber: data.dedicated_account.account_number || "Unknown",
+              bankId: data.dedicated_account.bank?.id,
+              assignedAt: data.dedicated_account.assignment?.assigned_at ? new Date(data.dedicated_account.assignment.assigned_at) : new Date(),
+            });
+          }
+        }
+      }
     }
 
     res.sendStatus(200);
@@ -374,6 +436,222 @@ router.get("/transactions", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Wallet transactions error:", error);
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * @swagger
+ * /wallet/account:
+ *   post:
+ *     summary: Create a dedicated bank account number for the user
+ *     description: Creates a Paystack customer (if needed) and assigns a dedicated virtual account number. The user can fund their wallet by transferring to this account.
+ *     tags: [Wallet]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               preferredBank:
+ *                 type: string
+ *                 description: Bank slug (e.g. "wema-bank", "titan-paystack", or "test-bank" for test mode)
+ *                 example: "test-bank"
+ *     responses:
+ *       200:
+ *         description: Dedicated account created or already exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 accountNumber:
+ *                   type: string
+ *                 accountName:
+ *                   type: string
+ *                 bankName:
+ *                   type: string
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.post("/account", async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const existingAccount = await storage.getDedicatedAccountByUserId(userId);
+    if (existingAccount) {
+      return res.json({
+        message: "Dedicated account already exists",
+        accountNumber: existingAccount.accountNumber,
+        accountName: existingAccount.accountName,
+        bankName: existingAccount.bankName,
+      });
+    }
+
+    const user = await storage.getUser(userId);
+    if (!user) return res.status(401).json({ error: "User not found" });
+
+    let paystackCustomer = await storage.getPaystackCustomerByUserId(userId);
+    if (!paystackCustomer) {
+      const customerResult = await createPaystackCustomer(
+        user.email,
+        user.firstName,
+        user.lastName,
+        user.phoneNumber,
+      );
+      paystackCustomer = await storage.createPaystackCustomer({
+        userId,
+        customerCode: customerResult.data.customer_code,
+        paystackCustomerId: customerResult.data.id,
+      });
+    }
+
+    const preferredBank = req.body?.preferredBank || undefined;
+    let dvaResult;
+    try {
+      dvaResult = await createDedicatedAccount(paystackCustomer.customerCode, preferredBank);
+    } catch (error: any) {
+      if (error.message?.includes("not available for your business")) {
+        return res.status(400).json({ error: "Dedicated Virtual Accounts are not enabled for your Paystack business. Please contact Paystack support to activate this feature." });
+      }
+      throw error;
+    }
+
+    if (dvaResult.data.assigned && dvaResult.data.account_number) {
+      const dedicatedAccount = await storage.createDedicatedAccount({
+        userId,
+        customerCode: paystackCustomer.customerCode,
+        bankName: dvaResult.data.bank.name,
+        accountName: dvaResult.data.account_name,
+        accountNumber: dvaResult.data.account_number,
+        bankId: dvaResult.data.bank.id,
+        assignedAt: dvaResult.data.assignment?.assigned_at ? new Date(dvaResult.data.assignment.assigned_at) : undefined,
+      });
+
+      await storage.getOrCreateWallet(userId);
+
+      res.json({
+        message: "Dedicated account created successfully",
+        accountNumber: dedicatedAccount.accountNumber,
+        accountName: dedicatedAccount.accountName,
+        bankName: dedicatedAccount.bankName,
+      });
+    } else {
+      await storage.createDedicatedAccount({
+        userId,
+        customerCode: paystackCustomer.customerCode,
+        bankName: "Pending",
+        accountName: "Pending",
+        accountNumber: `pending-${randomUUID().slice(0, 8)}`,
+        active: 0,
+      });
+
+      await storage.getOrCreateWallet(userId);
+
+      res.json({
+        message: "Dedicated account request submitted. The account number will be assigned shortly. Check back using GET /api/wallet/account.",
+        status: "pending",
+      });
+    }
+  } catch (error: any) {
+    console.error("Create dedicated account error:", error);
+    res.status(500).json({ error: error.message || "Internal server error" });
+  }
+});
+
+/**
+ * @swagger
+ * /wallet/account:
+ *   get:
+ *     summary: Get user's dedicated bank account details
+ *     description: Returns the dedicated virtual account number assigned to the user for wallet funding via bank transfer.
+ *     tags: [Wallet]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Account details retrieved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 accountNumber:
+ *                   type: string
+ *                 accountName:
+ *                   type: string
+ *                 bankName:
+ *                   type: string
+ *                 active:
+ *                   type: boolean
+ *       404:
+ *         description: No dedicated account found
+ *       401:
+ *         description: Unauthorized
+ */
+router.get("/account", async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const account = await storage.getDedicatedAccountByUserId(userId);
+    if (!account) {
+      return res.status(404).json({
+        error: "No dedicated account found. Create one using POST /api/wallet/account",
+      });
+    }
+
+    if (account.active === 0) {
+      return res.json({
+        status: "pending",
+        message: "Your dedicated account is being set up. Please check back shortly.",
+      });
+    }
+
+    res.json({
+      accountNumber: account.accountNumber,
+      accountName: account.accountName,
+      bankName: account.bankName,
+      active: true,
+    });
+  } catch (error) {
+    console.error("Get dedicated account error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * @swagger
+ * /wallet/providers:
+ *   get:
+ *     summary: List available bank providers for dedicated accounts
+ *     description: Returns the list of banks available for creating dedicated virtual accounts.
+ *     tags: [Wallet]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Providers list retrieved
+ *       401:
+ *         description: Unauthorized
+ */
+router.get("/providers", async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const providers = await listAvailableProviders();
+    res.json(providers);
+  } catch (error: any) {
+    console.error("List providers error:", error);
+    res.status(500).json({ error: error.message || "Internal server error" });
   }
 });
 

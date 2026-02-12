@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type Wallet, type WalletTransaction, users, wallets, walletTransactions } from "@shared/schema";
+import { type User, type InsertUser, type Wallet, type WalletTransaction, type PaystackCustomer, type DedicatedAccount, users, wallets, walletTransactions, paystackCustomers, dedicatedAccounts } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql } from "drizzle-orm";
 
@@ -17,6 +17,12 @@ export interface IStorage {
   atomicCreditWallet(reference: string, userId: string, amount: string): Promise<{ wallet: Wallet; transaction: WalletTransaction } | null>;
   getWalletTransactionByReference(reference: string): Promise<WalletTransaction | undefined>;
   getWalletTransactions(userId: string): Promise<WalletTransaction[]>;
+  createPaystackCustomer(data: { userId: string; customerCode: string; paystackCustomerId: number }): Promise<PaystackCustomer>;
+  getPaystackCustomerByUserId(userId: string): Promise<PaystackCustomer | undefined>;
+  createDedicatedAccount(data: { userId: string; customerCode: string; bankName: string; accountName: string; accountNumber: string; bankId?: number; active?: number; assignedAt?: Date }): Promise<DedicatedAccount>;
+  getDedicatedAccountByUserId(userId: string): Promise<DedicatedAccount | undefined>;
+  updateDedicatedAccount(userId: string, data: Partial<DedicatedAccount>): Promise<DedicatedAccount | undefined>;
+  getPaystackCustomerByCustomerCode(customerCode: string): Promise<PaystackCustomer | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -128,6 +134,38 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(walletTransactions)
       .where(eq(walletTransactions.userId, userId))
       .orderBy(desc(walletTransactions.createdAt));
+  }
+
+  async createPaystackCustomer(data: { userId: string; customerCode: string; paystackCustomerId: number }): Promise<PaystackCustomer> {
+    const [customer] = await db.insert(paystackCustomers).values(data).returning();
+    return customer;
+  }
+
+  async getPaystackCustomerByUserId(userId: string): Promise<PaystackCustomer | undefined> {
+    const [customer] = await db.select().from(paystackCustomers).where(eq(paystackCustomers.userId, userId));
+    return customer;
+  }
+
+  async createDedicatedAccount(data: { userId: string; customerCode: string; bankName: string; accountName: string; accountNumber: string; bankId?: number; active?: number; assignedAt?: Date }): Promise<DedicatedAccount> {
+    const [account] = await db.insert(dedicatedAccounts).values(data).returning();
+    return account;
+  }
+
+  async getDedicatedAccountByUserId(userId: string): Promise<DedicatedAccount | undefined> {
+    const [account] = await db.select().from(dedicatedAccounts).where(eq(dedicatedAccounts.userId, userId));
+    return account;
+  }
+  async updateDedicatedAccount(userId: string, data: Partial<DedicatedAccount>): Promise<DedicatedAccount | undefined> {
+    const [account] = await db.update(dedicatedAccounts)
+      .set(data)
+      .where(eq(dedicatedAccounts.userId, userId))
+      .returning();
+    return account;
+  }
+
+  async getPaystackCustomerByCustomerCode(customerCode: string): Promise<PaystackCustomer | undefined> {
+    const [customer] = await db.select().from(paystackCustomers).where(eq(paystackCustomers.customerCode, customerCode));
+    return customer;
   }
 }
 

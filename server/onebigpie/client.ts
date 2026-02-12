@@ -188,3 +188,16 @@ export async function fetchVouchers(): Promise<{
 }> {
   return makeRequest("/fetch-vouchers", "GET");
 }
+
+export async function fetchUserByEmail(email: string): Promise<OneBigPieUser | null> {
+  try {
+    const result = await fetchUsers();
+    if (result.status && result.data) {
+      const user = result.data.find(u => u.email.toLowerCase() === email.toLowerCase());
+      return user || null;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}

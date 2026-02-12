@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, numeric, serial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -51,10 +51,46 @@ export const resetPasswordSchema = z.object({
   newPassword: z.string().min(8, "New password must be at least 8 characters"),
 });
 
+export const wallets = pgTable("wallets", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().unique().references(() => users.id),
+  balance: numeric("balance", { precision: 12, scale: 2 }).notNull().default("0.00"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const walletTransactions = pgTable("wallet_transactions", {
+  id: serial("id").primaryKey(),
+  walletId: integer("wallet_id").notNull().references(() => wallets.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  type: text("type").notNull(),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  reference: text("reference").notNull().unique(),
+  status: text("status").notNull().default("pending"),
+  description: text("description"),
+  metadata: text("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const fundWalletSchema = z.object({
+  amount: z.number().min(100, "Minimum funding amount is 100 Naira"),
+  callbackUrl: z.string().url().optional(),
+});
+
+export const deductWalletSchema = z.object({
+  amount: z.number().min(1, "Amount must be at least 1 Naira"),
+  description: z.string().min(1, "Description is required"),
+  reference: z.string().optional(),
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
+export type Wallet = typeof wallets.$inferSelect;
+export type WalletTransaction = typeof walletTransactions.$inferSelect;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type FundWalletInput = z.infer<typeof fundWalletSchema>;
+export type DeductWalletInput = z.infer<typeof deductWalletSchema>;

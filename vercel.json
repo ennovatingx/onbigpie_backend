@@ -16,7 +16,19 @@
   ],
   "routes": [
     {
-      "source": "/api/(.*)",
+      "src": "/api-docs",
+      "dest": "/api/index.ts"
+    },
+    {
+      "src": "/api-docs/(.*)",
+      "dest": "/api/index.ts"
+    },
+    {
+      "src": "/api/swagger.json",
+      "dest": "/api/index.ts"
+    },
+    {
+      "src": "/api/(.*)",
       "dest": "/api/index.ts"
     },
     {

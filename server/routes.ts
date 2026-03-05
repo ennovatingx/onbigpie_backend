@@ -87,13 +87,12 @@ export async function registerRoutes(
   </body>
 </html>`;
 
-  app.get("/api-docs", (_req, res) => {
-    res.redirect(307, "/api-docs/");
-  });
-
-  app.get("/api-docs/", (_req, res) => {
+  const serveSwaggerDocs = (_req: Request, res: Response) => {
     res.status(200).type("html").send(swaggerHtml);
-  });
+  };
+
+  app.get("/api-docs", serveSwaggerDocs);
+  app.get("/api-docs/", serveSwaggerDocs);
 
   // Swagger JSON endpoint
   app.get("/api/swagger.json", (req, res) => {

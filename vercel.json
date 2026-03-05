@@ -1,6 +1,13 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
+  "redirects": [
+    {
+      "source": "/api-docs",
+      "destination": "/api-docs/",
+      "permanent": false
+    }
+  ],
   "builds": [
     {
       "src": "api/index.ts",
@@ -31,6 +38,10 @@
     },
     {
       "src": "/api/swagger.json",
+      "dest": "/api/index.ts"
+    },
+    {
+      "src": "/swagger-ui-(.*)",
       "dest": "/api/index.ts"
     },
     {

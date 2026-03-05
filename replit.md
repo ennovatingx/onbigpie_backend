@@ -13,7 +13,7 @@ Preferred communication style: Simple, everyday language.
 ### Backend Architecture
 - **Framework**: Express.js with TypeScript
 - **API Documentation**: Swagger UI with swagger-jsdoc for auto-generated OpenAPI docs
-- **Authentication**: Token-based session management with in-memory storage
+- **Authentication**: JWT Bearer token authentication (stateless, serverless-friendly)
 - **Password Security**: bcryptjs for password hashing
 - **Validation**: Zod schemas shared between client and server
 - **OneCard Integration**: AES-256-CBC encryption for secure API communication
@@ -100,6 +100,7 @@ Preferred communication style: Simple, everyday language.
 ### OneCard Integration Details
 
 #### Required Secrets
+- `JWT_SECRET` - secret used to sign/verify auth tokens
 - `ONECARD_API_USERNAME` - API username from OneCard console
 - `ONECARD_API_PASSWORD` - API password from OneCard console
 

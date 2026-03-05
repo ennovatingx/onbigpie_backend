@@ -10,6 +10,7 @@ import {
 } from "@shared/schema";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
+import jwt from "jsonwebtoken";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./swagger";
 import { registerOneCardRoutes } from "./onecard/routes";
@@ -17,8 +18,19 @@ import oneBigPieRoutes from "./onebigpie/routes";
 import walletRoutes from "./paystack/routes";
 import { createUser as createOneBigPieUser, fetchUserByEmail as fetchOneBigPieUser } from "./onebigpie/client";
 
-// Simple session store for demo purposes
-const sessions: Map<string, { userId: string; expiresAt: Date }> = new Map();
+const JWT_EXPIRES_IN = "24h";
+
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error("JWT_SECRET environment variable is required");
+  }
+  return secret;
+}
+
+function createAuthToken(userId: string) {
+  return jwt.sign({ userId }, getJwtSecret(), { expiresIn: JWT_EXPIRES_IN });
+}
 
 // Middleware to check authentication
 function authenticateToken(req: Request, res: Response, next: NextFunction) {
@@ -29,14 +41,17 @@ function authenticateToken(req: Request, res: Response, next: NextFunction) {
     return res.status(401).json({ error: "Access token required" });
   }
 
-  const session = sessions.get(token);
-  if (!session || session.expiresAt < new Date()) {
-    sessions.delete(token);
+  try {
+    const payload = jwt.verify(token, getJwtSecret()) as { userId?: string };
+    if (!payload?.userId) {
+      return res.status(401).json({ error: "Invalid token payload" });
+    }
+
+    (req as any).userId = payload.userId;
+    next();
+  } catch (_error) {
     return res.status(401).json({ error: "Invalid or expired token" });
   }
-
-  (req as any).userId = session.userId;
-  next();
 }
 
 export async function registerRoutes(
@@ -111,12 +126,7 @@ export async function registerRoutes(
         password: hashedPassword
       });
 
-      // Generate session token
-      const token = randomUUID();
-      sessions.set(token, {
-        userId: user.id,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
-      });
+      const token = createAuthToken(user.id);
 
       // Return user without password
       const { password: _, resetToken, resetTokenExpiry, ...userResponse } = user;
@@ -205,12 +215,7 @@ export async function registerRoutes(
         return res.status(401).json({ error: "Invalid email or password" });
       }
 
-      // Generate session token
-      const token = randomUUID();
-      sessions.set(token, {
-        userId: user.id,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
-      });
+      const token = createAuthToken(user.id);
 
       // Return user without password
       const { password: _, resetToken, resetTokenExpiry, ...userResponse } = user;
@@ -509,14 +514,7 @@ export async function registerRoutes(
    */
   app.post("/api/auth/logout", authenticateToken, async (req: Request, res: Response) => {
     try {
-      const authHeader = req.headers["authorization"];
-      const token = authHeader && authHeader.split(" ")[1];
-      
-      if (token) {
-        sessions.delete(token);
-      }
-
-      res.json({ message: "Logged out successfully" });
+      res.json({ message: "Logged out successfully. Discard token on client." });
     } catch (error) {
       console.error("Logout error:", error);
       res.status(500).json({ error: "Internal server error" });

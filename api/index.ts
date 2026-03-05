@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { createApp } from "../server/app";
+import { createApp } from "../server/app.ts";
 
 const appPromise = createApp("none").then(({ app }) => app);
 

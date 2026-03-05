@@ -11,7 +11,6 @@ import {
 import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
 import jwt from "jsonwebtoken";
-import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./swagger.ts";
 import { registerOneCardRoutes } from "./onecard/routes.ts";
 import oneBigPieRoutes from "./onebigpie/routes.ts";
@@ -58,11 +57,43 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // Swagger UI setup
-  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-    customCss: '.swagger-ui .topbar { display: none }',
-    customSiteTitle: "Authentication API Documentation"
-  }));
+  const swaggerHtml = `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Authentication API Documentation</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+    <style>
+      html, body { margin: 0; padding: 0; }
+      .swagger-ui .topbar { display: none; }
+    </style>
+  </head>
+  <body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>
+    <script>
+      window.onload = () => {
+        window.ui = SwaggerUIBundle({
+          url: '/api/swagger.json',
+          dom_id: '#swagger-ui',
+          presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+          layout: 'StandaloneLayout',
+          deepLinking: true,
+        });
+      };
+    </script>
+  </body>
+</html>`;
+
+  app.get("/api-docs", (_req, res) => {
+    res.redirect(307, "/api-docs/");
+  });
+
+  app.get("/api-docs/", (_req, res) => {
+    res.status(200).type("html").send(swaggerHtml);
+  });
 
   // Swagger JSON endpoint
   app.get("/api/swagger.json", (req, res) => {

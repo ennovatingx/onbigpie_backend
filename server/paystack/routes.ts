@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router, type Request, type Response } from "express";
 import { randomUUID } from "crypto";
 import { storage } from "../storage.ts";
 import { fundWalletSchema, deductWalletSchema } from "../../shared/schema.ts";

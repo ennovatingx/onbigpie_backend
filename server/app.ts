@@ -1,8 +1,8 @@
 import express, { type NextFunction, type Request, type Response } from "express";
 import cookieParser from "cookie-parser";
 import { createServer, type Server } from "http";
-import { registerRoutes } from "./routes";
-import { serveStatic } from "./static";
+import { registerRoutes } from "./routes.ts";
+import { serveStatic } from "./static.ts";
 
 type ClientMode = "static" | "vite" | "none";
 
@@ -81,7 +81,7 @@ export async function createApp(clientMode: ClientMode = "none") {
   if (clientMode === "static") {
     serveStatic(app);
   } else if (clientMode === "vite") {
-    const { setupVite } = await import("./vite");
+    const { setupVite } = await import("./vite.ts");
     await setupVite(httpServer, app);
   }
 

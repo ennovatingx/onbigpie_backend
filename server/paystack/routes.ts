@@ -1,8 +1,8 @@
 import { Router, Request, Response } from "express";
 import { randomUUID } from "crypto";
-import { storage } from "../storage";
-import { fundWalletSchema, deductWalletSchema } from "@shared/schema";
-import { initializeTransaction, verifyTransaction, verifyWebhookSignature, createPaystackCustomer, createDedicatedAccount, listAvailableProviders } from "./client";
+import { storage } from "../storage.ts";
+import { fundWalletSchema, deductWalletSchema } from "../../shared/schema.ts";
+import { initializeTransaction, verifyTransaction, verifyWebhookSignature, createPaystackCustomer, createDedicatedAccount, listAvailableProviders } from "./client.ts";
 
 const router = Router();
 

@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from "express";
-import * as oneCardClient from "./client";
+import * as oneCardClient from "./client.ts";
 
 export function registerOneCardRoutes(app: Express): void {
   /**

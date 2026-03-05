@@ -103,7 +103,7 @@
 // })();
 
 import "dotenv/config";
-import { createApp, log } from "./app";
+import { createApp, log } from "./app.ts";
 
 async function main() {
   const clientMode = process.env.NODE_ENV === "production" ? "static" : "vite";

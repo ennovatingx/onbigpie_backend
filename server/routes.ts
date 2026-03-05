@@ -1,22 +1,22 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { storage } from "./storage.ts";
 import { 
   registerSchema, 
   loginSchema, 
   forgotPasswordSchema, 
   changePasswordSchema,
   resetPasswordSchema 
-} from "@shared/schema";
+} from "../shared/schema.ts";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
 import jwt from "jsonwebtoken";
 import swaggerUi from "swagger-ui-express";
-import { swaggerSpec } from "./swagger";
-import { registerOneCardRoutes } from "./onecard/routes";
-import oneBigPieRoutes from "./onebigpie/routes";
-import walletRoutes from "./paystack/routes";
-import { createUser as createOneBigPieUser, fetchUserByEmail as fetchOneBigPieUser } from "./onebigpie/client";
+import { swaggerSpec } from "./swagger.ts";
+import { registerOneCardRoutes } from "./onecard/routes.ts";
+import oneBigPieRoutes from "./onebigpie/routes.ts";
+import walletRoutes from "./paystack/routes.ts";
+import { createUser as createOneBigPieUser, fetchUserByEmail as fetchOneBigPieUser } from "./onebigpie/client.ts";
 
 const JWT_EXPIRES_IN = "24h";
 

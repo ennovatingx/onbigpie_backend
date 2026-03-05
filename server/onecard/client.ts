@@ -1,4 +1,4 @@
-import { encrypt, decrypt, encryptLoginCredentials, decryptAuthToken, DEFAULT_KEY, DEFAULT_SALT } from "./encryption";
+import { encrypt, decrypt, encryptLoginCredentials, decryptAuthToken, DEFAULT_KEY, DEFAULT_SALT } from "./encryption.ts";
 
 const ONECARD_BASE_URL = "https://api.onecardnigeria.com/rest";
 

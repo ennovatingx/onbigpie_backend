@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
-import * as oneBigPieClient from "./client";
-import { OneBigPieError } from "./client";
+import * as oneBigPieClient from "./client.ts";
+import { OneBigPieError } from "./client.ts";
 
 const router = Router();
 

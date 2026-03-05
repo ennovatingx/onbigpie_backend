@@ -1,5 +1,5 @@
-import { type User, type InsertUser, type Wallet, type WalletTransaction, type PaystackCustomer, type DedicatedAccount, users, wallets, walletTransactions, paystackCustomers, dedicatedAccounts } from "@shared/schema";
-import { db } from "./db";
+import { type User, type InsertUser, type Wallet, type WalletTransaction, type PaystackCustomer, type DedicatedAccount, users, wallets, walletTransactions, paystackCustomers, dedicatedAccounts } from "../shared/schema.ts";
+import { db } from "./db.ts";
 import { eq, desc, sql } from "drizzle-orm";
 
 export interface IStorage {

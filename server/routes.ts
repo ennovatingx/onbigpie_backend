@@ -15,6 +15,7 @@ import { swaggerSpec } from "./swagger.ts";
 import { registerOneCardRoutes } from "./onecard/routes.ts";
 import oneBigPieRoutes from "./onebigpie/routes.ts";
 import walletRoutes from "./paystack/routes.ts";
+import rideraRoutes from "./ridera/routes.ts";
 import { createUser as createOneBigPieUser, fetchUserByEmail as fetchOneBigPieUser } from "./onebigpie/client.ts";
 
 const JWT_EXPIRES_IN = "24h";
@@ -557,14 +558,14 @@ export async function registerRoutes(
   // Register OneBigPie API routes
   app.use("/api/onebigpie", oneBigPieRoutes);
 
-  // Register Wallet/Paystack routes
-  // Wallet routes handle their own auth - webhook is public, others check authenticateToken
-  app.use("/api/wallet", (req, res, next) => {
-    if (req.path === "/webhook" && req.method === "POST") {
-      return next();
-    }
+  // Register Ridera routes (with authentication middleware)
+  app.use("/api/ridera", (req, res, next) => {
     return authenticateToken(req, res, next);
-  }, walletRoutes);
+  }, rideraRoutes);
+
+  // Register Wallet/Paystack routes
+  // All wallet routes are public (no authentication required) for now
+  app.use("/api/wallet", walletRoutes);
 
   return httpServer;
 }

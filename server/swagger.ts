@@ -503,6 +503,61 @@ const options: swaggerJsdoc.Options = {
             },
           },
         },
+        PaystackCustomerData: {
+          type: "object",
+          properties: {
+            id: { type: "integer", example: 123456789 },
+            first_name: { type: "string", nullable: true, example: "John" },
+            last_name: { type: "string", nullable: true, example: "Doe" },
+            email: { type: "string", format: "email", example: "john.doe@example.com" },
+            customer_code: { type: "string", example: "CUS_xxxxxxxxxx" },
+            phone: { type: "string", nullable: true, example: "+2348012345678" },
+            metadata: { type: "object", nullable: true, additionalProperties: true },
+            risk_action: { type: "string", example: "default" },
+            international_format_phone: { type: "string", nullable: true, example: "+2348012345678" },
+            identified: { type: "boolean", example: true },
+            createdAt: { type: "string", format: "date-time" },
+            updatedAt: { type: "string", format: "date-time" },
+          },
+        },
+        FetchPaystackCustomerResponse: {
+          type: "object",
+          properties: {
+            status: { type: "boolean", example: true },
+            message: { type: "string", example: "Customer retrieved" },
+            data: { $ref: "#/components/schemas/PaystackCustomerData" },
+          },
+        },
+        PaystackTransactionItem: {
+          type: "object",
+          properties: {
+            id: { type: "integer", example: 391238123 },
+            status: { type: "string", example: "success" },
+            reference: { type: "string", example: "WF-abc123" },
+            amount: { type: "integer", example: 250000 },
+            currency: { type: "string", example: "NGN" },
+            channel: { type: "string", example: "bank_transfer" },
+            paid_at: { type: "string", format: "date-time", nullable: true },
+            created_at: { type: "string", format: "date-time" },
+            gateway_response: { type: "string", example: "Successful" },
+          },
+        },
+        FetchCustomerTransactionsResponse: {
+          type: "object",
+          properties: {
+            status: { type: "boolean", example: true },
+            message: { type: "string", example: "Transactions retrieved" },
+            data: {
+              type: "array",
+              items: { $ref: "#/components/schemas/PaystackTransactionItem" },
+            },
+            meta: {
+              type: "object",
+              nullable: true,
+              additionalProperties: true,
+            },
+          },
+        },
         OneBigPieCreateUserRequest: {
           type: "object",
           required: ["email", "firstname", "lastname", "phone", "password"],
@@ -672,6 +727,76 @@ const options: swaggerJsdoc.Options = {
             },
           },
         },
+        CreateQuoteRequest: {
+          type: "object",
+          required: ["quoteType", "fullName", "phone", "email"],
+          properties: {
+            quoteType: { type: "string", example: "standard_ride", description: "Type of quote requested" },
+            fullName: { type: "string", example: "John Doe", minLength: 2 },
+            phone: { type: "string", example: "08012345678", minLength: 10 },
+            email: { type: "string", format: "email", example: "john@example.com" },
+            notes: { type: "string", example: "Extra luggage needed", nullable: true },
+            requestData: { type: "object", description: "Dynamic fields for the quote form", additionalProperties: true, nullable: true },
+          },
+        },
+        UpdateQuoteRequest: {
+          type: "object",
+          properties: {
+            status: { type: "string", enum: ["pending", "accepted", "rejected", "completed"], example: "accepted" },
+            notes: { type: "string", example: "Driver confirmed" },
+            requestData: { type: "object", description: "Updated dynamic fields", additionalProperties: true },
+          },
+        },
+        QuoteResponse: {
+          type: "object",
+          properties: {
+            id: { type: "string", format: "uuid", example: "550e8400-e29b-41d4-a716-446655440000" },
+            quoteType: { type: "string", example: "standard_ride" },
+            fullName: { type: "string", example: "John Doe" },
+            phone: { type: "string", example: "08012345678" },
+            email: { type: "string", format: "email", example: "john@example.com" },
+            notes: { type: "string", nullable: true },
+            status: { type: "string", example: "pending" },
+            requestData: { type: "object", additionalProperties: true },
+            createdAt: { type: "string", format: "date-time" },
+            updatedAt: { type: "string", format: "date-time" },
+          },
+        },
+        CreateSocialLinkRequest: {
+          type: "object",
+          required: ["name", "socialOrigin", "whatsappNumber", "socialName"],
+          properties: {
+            name: { type: "string", example: "Facebook Community" },
+            socialOrigin: { type: "string", example: "facebook" },
+            whatsappNumber: { type: "string", example: "+2348012345678" },
+            socialName: { type: "string", example: "@my_community" },
+          },
+        },
+        UpdateSocialLinkRequest: {
+          type: "object",
+          properties: {
+            name: { type: "string", example: "Updated Community Name" },
+            socialOrigin: { type: "string", example: "instagram" },
+            whatsappNumber: { type: "string", example: "+2348098765432" },
+            socialName: { type: "string", example: "@updated_handle" },
+            status: { type: "string", enum: ["active", "inactive"], example: "active" },
+          },
+        },
+        SocialLinkResponse: {
+          type: "object",
+          properties: {
+            id: { type: "integer", example: 1 },
+            userId: { type: "string", format: "uuid", example: "550e8400-e29b-41d4-a716-446655440000" },
+            name: { type: "string", example: "Facebook Community" },
+            socialOrigin: { type: "string", example: "facebook" },
+            whatsappNumber: { type: "string", example: "+2348012345678" },
+            socialName: { type: "string", example: "@my_community" },
+            socialCode: { type: "string", example: "FAC-1234567890-ABC123DEF" },
+            status: { type: "string", enum: ["active", "inactive"], example: "active" },
+            createdAt: { type: "string", format: "date-time" },
+            updatedAt: { type: "string", format: "date-time" },
+          },
+        },
       },
     },
     tags: [
@@ -691,9 +816,17 @@ const options: swaggerJsdoc.Options = {
         name: "Wallet",
         description: "Wallet management with Paystack payment integration - fund wallet, check balance, deduct, and view transactions",
       },
+      {
+        name: "Ridera",
+        description: "Ridera ride-sharing quote request and management",
+      },
+      {
+        name: "Social Links",
+        description: "Social link management for social media referral codes and WhatsApp integration",
+      },
     ],
   },
-  apis: ["./server/routes.ts", "./server/onecard/routes.ts", "./server/onebigpie/routes.ts", "./server/paystack/routes.ts"],
+  apis: ["./server/routes.ts", "./server/onecard/routes.ts", "./server/onebigpie/routes.ts", "./server/paystack/routes.ts", "./server/ridera/routes.ts"],
 };
 
 export const swaggerSpec = swaggerJsdoc(options);

@@ -2,9 +2,128 @@ import { Router, type Request, type Response } from "express";
 import { randomUUID } from "crypto";
 import { storage } from "../storage.ts";
 import { fundWalletSchema, deductWalletSchema } from "../../shared/schema.ts";
-import { initializeTransaction, verifyTransaction, verifyWebhookSignature, createPaystackCustomer, createDedicatedAccount, listAvailableProviders } from "./client.ts";
+import { initializeTransaction, verifyTransaction, verifyWebhookSignature, createPaystackCustomer, fetchPaystackCustomer, fetchCustomerTransactions, createDedicatedAccount, listAvailableProviders } from "./client.ts";
 
 const router = Router();
+
+/**
+ * @swagger
+ * /wallet/customer/{emailOrCode}:
+ *   get:
+ *     summary: Fetch Paystack customer by email or customer code
+ *     tags: [Wallet]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: emailOrCode
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Paystack customer email or customer code
+ *     responses:
+ *       200:
+ *         description: Customer retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/FetchPaystackCustomerResponse'
+ *       400:
+ *         description: Missing path parameter
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.get("/customer/:emailOrCode", async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const emailOrCode = String(req.params.emailOrCode ?? "").trim();
+    if (!emailOrCode) {
+      return res.status(400).json({ error: "emailOrCode is required" });
+    }
+
+    const result = await fetchPaystackCustomer(emailOrCode);
+    return res.json(result);
+  } catch (error) {
+    console.error("Fetch Paystack customer error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * @swagger
+ * /wallet/customer/{customerId}/transactions:
+ *   get:
+ *     summary: Fetch Paystack transactions for a specific customer
+ *     tags: [Wallet]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: customerId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Paystack customer numeric ID
+ *     responses:
+ *       200:
+ *         description: Customer transactions retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/FetchCustomerTransactionsResponse'
+ *       400:
+ *         description: Invalid customerId
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.get("/customer/:customerId/transactions", async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const customerIdRaw = String(req.params.customerId ?? "").trim();
+    const customerId = Number(customerIdRaw);
+    if (!customerIdRaw || Number.isNaN(customerId) || customerId <= 0) {
+      return res.status(400).json({ error: "customerId must be a positive number" });
+    }
+
+    const result = await fetchCustomerTransactions(customerId);
+    return res.json(result);
+  } catch (error) {
+    console.error("Fetch customer transactions error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 /**
  * @swagger
@@ -235,9 +354,21 @@ router.get("/verify/:reference", async (req: Request, res: Response) => {
 router.post("/webhook", async (req: Request, res: Response) => {
   try {
     const signature = req.headers["x-paystack-signature"] as string;
-    const rawBody = JSON.stringify(req.body);
+    const rawBody = (req as any).rawBody;
 
-    if (!signature || !verifyWebhookSignature(rawBody, signature)) {
+    if (!signature) {
+      console.warn("Webhook missing signature header");
+      return res.status(401).json({ error: "Invalid signature" });
+    }
+
+    if (!rawBody) {
+      console.warn("Webhook missing raw body");
+      return res.status(401).json({ error: "Invalid signature" });
+    }
+
+    const rawBodyString = typeof rawBody === "string" ? rawBody : rawBody.toString();
+    if (!verifyWebhookSignature(rawBodyString, signature)) {
+      console.warn("Webhook signature verification failed");
       return res.status(401).json({ error: "Invalid signature" });
     }
 
@@ -268,26 +399,43 @@ router.post("/webhook", async (req: Request, res: Response) => {
           return res.sendStatus(200);
         }
 
+        let userId: string | undefined;
+
+        // Try to find user by customer code first
         const customerCode = event.data.customer?.customer_code;
         if (customerCode) {
           const paystackCust = await storage.getPaystackCustomerByCustomerCode(customerCode);
-          if (paystackCust) {
-            const amountNaira = (amount / 100).toFixed(2);
-            const wallet = await storage.getOrCreateWallet(paystackCust.userId);
+          if (paystackCust) userId = paystackCust.userId;
+        }
 
-            await storage.createWalletTransaction({
-              walletId: wallet.id,
-              userId: paystackCust.userId,
-              type: "credit",
-              amount: amountNaira,
-              reference: dvaRef,
-              status: "pending",
-              description: "Wallet funding via bank transfer (DVA)",
-              metadata: JSON.stringify({ paystack_charge_id: chargeId, paystack_reference: reference, channel: "dedicated_nuban" }),
-            });
-
-            await storage.atomicCreditWallet(dvaRef, paystackCust.userId, amountNaira);
+        // If not found by customer code, try to find by account number
+        if (!userId) {
+          const accountNumber = event.data.account_number || event.data.metadata?.account_number;
+          if (accountNumber) {
+            const dedicatedAccount = await storage.getDedicatedAccountByAccountNumber(accountNumber);
+            if (dedicatedAccount) userId = dedicatedAccount.userId;
           }
+        }
+
+        if (userId) {
+          const amountNaira = (amount / 100).toFixed(2);
+          const wallet = await storage.getOrCreateWallet(userId);
+
+          await storage.createWalletTransaction({
+            walletId: wallet.id,
+            userId,
+            type: "credit",
+            amount: amountNaira,
+            reference: dvaRef,
+            status: "success",
+            description: "Wallet funding via bank transfer (DVA)",
+            metadata: JSON.stringify({ paystack_charge_id: chargeId, paystack_reference: reference, channel: "dedicated_nuban", matched_by: "account_number" }),
+          });
+
+          await storage.atomicCreditWallet(dvaRef, userId, amountNaira);
+          console.log(`[DVA] Credited wallet for user ${userId}, amount: ${amountNaira}, reference: ${dvaRef}`);
+        } else {
+          console.warn(`[DVA Webhook] Could not match to user. Charge ID: ${chargeId}, Amount: ${amount}, Event:`, JSON.stringify(event.data));
         }
       }
     }
@@ -652,6 +800,159 @@ router.get("/providers", async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("List providers error:", error);
     res.status(500).json({ error: error.message || "Internal server error" });
+  }
+});
+
+/**
+ * @swagger
+ * /wallet/debug/account-lookup:
+ *   post:
+ *     summary: Debug endpoint - lookup user by account number
+ *     description: Find which user owns a dedicated account by account number. Helps track incoming transfers. This endpoint is public (no auth required).
+ *     tags: [Wallet]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               accountNumber:
+ *                 type: string
+ *                 example: "9755046603"
+ *     responses:
+ *       200:
+ *         description: Account owner found
+ *       404:
+ *         description: Account not found
+ */
+router.post("/debug/account-lookup", async (req: Request, res: Response) => {
+  try {
+    const { accountNumber } = req.body;
+    if (!accountNumber) {
+      return res.status(400).json({ error: "accountNumber is required" });
+    }
+
+    const account = await storage.getDedicatedAccountByAccountNumber(accountNumber);
+    if (!account) {
+      return res.status(404).json({ error: "Account not found", accountNumber });
+    }
+
+    const user = await storage.getUser(account.userId);
+    const wallet = await storage.getWalletByUserId(account.userId);
+    const transactions = await storage.getWalletTransactions(account.userId);
+
+    res.json({
+      account: {
+        accountNumber: account.accountNumber,
+        accountName: account.accountName,
+        bankName: account.bankName,
+        active: account.active === 1,
+        createdAt: account.createdAt,
+      },
+      user: {
+        id: user?.id,
+        email: user?.email,
+        firstName: user?.firstName,
+        lastName: user?.lastName,
+      },
+      wallet: {
+        balance: wallet?.balance || "0.00",
+        updatedAt: wallet?.updatedAt,
+      },
+      recentTransactions: transactions.slice(0, 10),
+    });
+  } catch (error) {
+    console.error("Account lookup error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * @swagger
+ * /wallet/public/{email}:
+ *   get:
+ *     summary: Fetch user wallet by email (Public)
+ *     description: Get wallet balance and details using only email address. No authentication required.
+ *     tags: [Wallet]
+ *     parameters:
+ *       - in: path
+ *         name: email
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User email address
+ *         example: "user@example.com"
+ *     responses:
+ *       200:
+ *         description: Wallet details retrieved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     firstName:
+ *                       type: string
+ *                     lastName:
+ *                       type: string
+ *                 wallet:
+ *                   type: object
+ *                   properties:
+ *                     balance:
+ *                       type: string
+ *                     currency:
+ *                       type: string
+ *                     createdAt:
+ *                       type: string
+ *                     updatedAt:
+ *                       type: string
+ *       404:
+ *         description: User or wallet not found
+ *       400:
+ *         description: Invalid email format
+ */
+router.get("/public/:email", async (req: Request, res: Response) => {
+  try {
+    const email = String(req.params.email ?? "").trim();
+    
+    if (!email || !email.includes("@")) {
+      return res.status(400).json({ error: "Valid email address is required" });
+    }
+
+    const user = await storage.getUserByEmail(email);
+    if (!user) {
+      return res.status(404).json({ error: "User not found", email });
+    }
+
+    const wallet = await storage.getWalletByUserId(user.id);
+    if (!wallet) {
+      return res.status(404).json({ error: "Wallet not found for user", email });
+    }
+
+    res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+      },
+      wallet: {
+        balance: wallet.balance,
+        currency: "NGN",
+        createdAt: wallet.createdAt,
+        updatedAt: wallet.updatedAt,
+      },
+    });
+  } catch (error) {
+    console.error("Fetch wallet by email error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

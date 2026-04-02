@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type Wallet, type WalletTransaction, type PaystackCustomer, type DedicatedAccount, users, wallets, walletTransactions, paystackCustomers, dedicatedAccounts } from "../shared/schema.ts";
+import { type User, type InsertUser, type Wallet, type WalletTransaction, type PaystackCustomer, type DedicatedAccount, type Referral, type Quote, type SocialLink, users, wallets, walletTransactions, paystackCustomers, dedicatedAccounts, referrals, quotes, socialLinks } from "../shared/schema.ts";
 import { db } from "./db.ts";
 import { eq, desc, sql } from "drizzle-orm";
 
@@ -23,6 +23,24 @@ export interface IStorage {
   getDedicatedAccountByUserId(userId: string): Promise<DedicatedAccount | undefined>;
   updateDedicatedAccount(userId: string, data: Partial<DedicatedAccount>): Promise<DedicatedAccount | undefined>;
   getPaystackCustomerByCustomerCode(customerCode: string): Promise<PaystackCustomer | undefined>;
+  getDedicatedAccountByAccountNumber(accountNumber: string): Promise<DedicatedAccount | undefined>;
+  createReferral(data: { referrerId: string; refereeId: string; referralCode: string; status?: string }): Promise<Referral>;
+  getReferralById(id: number): Promise<Referral | undefined>;
+  getReferralsByReferrerId(referrerId: string): Promise<Referral[]>;
+  getReferralByCode(code: string): Promise<Referral | undefined>;
+  updateReferral(id: number, updates: Partial<Referral>): Promise<Referral | undefined>;
+  deleteReferral(id: number): Promise<void>;
+  createQuote(data: { userId: string | null; quoteType: string; fullName: string; phone: string; email: string; notes?: string; requestData?: Record<string, any>; status?: string }): Promise<Quote>;
+  getQuoteById(id: string): Promise<Quote | undefined>;
+  getQuotesByUserId(userId: string): Promise<Quote[]>;
+  updateQuote(id: string, updates: Partial<Quote>): Promise<Quote | undefined>;
+  deleteQuote(id: string): Promise<void>;
+  createSocialLink(data: { userId: string; name: string; socialOrigin: string; whatsappNumber: string; socialName: string }): Promise<SocialLink>;
+  getSocialLinkById(id: number): Promise<SocialLink | undefined>;
+  getSocialLinksByUserId(userId: string): Promise<SocialLink[]>;
+  getSocialLinkByCode(socialCode: string): Promise<SocialLink | undefined>;
+  updateSocialLink(id: number, updates: Partial<SocialLink>): Promise<SocialLink | undefined>;
+  deleteSocialLink(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -166,6 +184,139 @@ export class DatabaseStorage implements IStorage {
   async getPaystackCustomerByCustomerCode(customerCode: string): Promise<PaystackCustomer | undefined> {
     const [customer] = await db.select().from(paystackCustomers).where(eq(paystackCustomers.customerCode, customerCode));
     return customer;
+  }
+
+  async getDedicatedAccountByAccountNumber(accountNumber: string): Promise<DedicatedAccount | undefined> {
+    const [account] = await db.select().from(dedicatedAccounts).where(eq(dedicatedAccounts.accountNumber, accountNumber));
+    return account;
+  }
+
+  // Referral methods
+  async createReferral(data: { referrerId: string; refereeId: string; referralCode: string; status?: string }): Promise<Referral> {
+    const [referral] = await db.insert(referrals).values({
+      ...data,
+      status: data.status || "active",
+    }).returning();
+    return referral;
+  }
+
+  async getReferralById(id: number): Promise<Referral | undefined> {
+    const [referral] = await db.select().from(referrals).where(eq(referrals.id, id));
+    return referral;
+  }
+
+  async getReferralsByReferrerId(referrerId: string): Promise<Referral[]> {
+    return db.select().from(referrals)
+      .where(eq(referrals.referrerId, referrerId))
+      .orderBy(desc(referrals.createdAt));
+  }
+
+  async getReferralByCode(code: string): Promise<Referral | undefined> {
+    const [referral] = await db.select().from(referrals).where(eq(referrals.referralCode, code));
+    return referral;
+  }
+
+  async updateReferral(id: number, updates: Partial<Referral>): Promise<Referral | undefined> {
+    const [referral] = await db.update(referrals)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(referrals.id, id))
+      .returning();
+    return referral;
+  }
+
+  async deleteReferral(id: number): Promise<void> {
+    await db.delete(referrals).where(eq(referrals.id, id));
+  }
+
+  // Quote methods
+  async createQuote(data: { userId: string | null; quoteType: string; fullName: string; phone: string; email: string; notes?: string; requestData?: Record<string, any>; status?: string }): Promise<Quote> {
+    const [quote] = await db.insert(quotes).values({
+      userId: data.userId,
+      quoteType: data.quoteType,
+      fullName: data.fullName,
+      phone: data.phone,
+      email: data.email,
+      notes: data.notes,
+      requestData: JSON.stringify(data.requestData || {}),
+      status: data.status || "pending",
+    }).returning();
+    return quote;
+  }
+
+  async getQuoteById(id: string): Promise<Quote | undefined> {
+    const [quote] = await db.select().from(quotes).where(eq(quotes.id, id));
+    return quote;
+  }
+
+  async getQuotesByUserId(userId: string): Promise<Quote[]> {
+    return db.select().from(quotes)
+      .where(eq(quotes.userId, userId))
+      .orderBy(desc(quotes.createdAt));
+  }
+
+  async updateQuote(id: string, updates: Partial<Quote>): Promise<Quote | undefined> {
+    const updateData: any = { ...updates };
+    if (updateData.requestData && typeof updateData.requestData === "object") {
+      updateData.requestData = JSON.stringify(updateData.requestData);
+    }
+    updateData.updatedAt = new Date();
+    
+    const [quote] = await db.update(quotes)
+      .set(updateData)
+      .where(eq(quotes.id, id))
+      .returning();
+    return quote;
+  }
+
+  async deleteQuote(id: string): Promise<void> {
+    await db.delete(quotes).where(eq(quotes.id, id));
+  }
+
+  // Social Link methods
+  async createSocialLink(data: { userId: string; name: string; socialOrigin: string; whatsappNumber: string; socialName: string }): Promise<SocialLink> {
+    // Generate unique social code
+    const socialCode = `${data.socialOrigin.slice(0, 3).toUpperCase()}-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+    
+    const [socialLink] = await db.insert(socialLinks).values({
+      ...data,
+      socialCode,
+      status: "active",
+    }).returning();
+    return socialLink;
+  }
+
+  async getSocialLinkById(id: number): Promise<SocialLink | undefined> {
+    const [socialLink] = await db.select().from(socialLinks).where(eq(socialLinks.id, id));
+    return socialLink;
+  }
+
+  async getSocialLinksByUserId(userId: string): Promise<SocialLink[]> {
+    return db.select().from(socialLinks)
+      .where(eq(socialLinks.userId, userId))
+      .orderBy(desc(socialLinks.createdAt));
+  }
+
+  async getSocialLinkByCode(socialCode: string): Promise<SocialLink | undefined> {
+    const [socialLink] = await db.select().from(socialLinks).where(eq(socialLinks.socialCode, socialCode));
+    return socialLink;
+  }
+
+  async updateSocialLink(id: number, updates: Partial<SocialLink>): Promise<SocialLink | undefined> {
+    const [socialLink] = await db.update(socialLinks)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(socialLinks.id, id))
+      .returning();
+    return socialLink;
+  }
+
+  async deleteSocialLink(id: number): Promise<void> {
+    await db.delete(socialLinks).where(eq(socialLinks.id, id));
   }
 }
 

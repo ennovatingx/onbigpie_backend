@@ -111,6 +111,25 @@ export interface PaystackCustomerResponse {
   };
 }
 
+export interface PaystackFetchCustomerResponse {
+  status: boolean;
+  message: string;
+  data: {
+    id: number;
+    first_name: string | null;
+    last_name: string | null;
+    email: string;
+    customer_code: string;
+    phone: string | null;
+    metadata: Record<string, any> | null;
+    risk_action: string;
+    international_format_phone: string | null;
+    identified: boolean;
+    createdAt: string;
+    updatedAt: string;
+  };
+}
+
 export interface PaystackDVAResponse {
   status: boolean;
   message: string;
@@ -173,6 +192,48 @@ export async function createPaystackCustomer(
     throw new Error(`Paystack customer error: ${data.message || response.statusText}`);
   }
   return data as PaystackCustomerResponse;
+}
+
+export async function fetchPaystackCustomer(
+  emailOrCode: string,
+): Promise<PaystackFetchCustomerResponse> {
+  const response = await fetch(
+    `${PAYSTACK_BASE_URL}/customer/${encodeURIComponent(emailOrCode)}`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${getSecretKey()}`,
+      },
+    },
+  );
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(`Paystack customer fetch error: ${data.message || response.statusText}`);
+  }
+
+  return data as PaystackFetchCustomerResponse;
+}
+
+
+export async function fetchCustomerTransactions (
+  customer: number,
+): Promise<any> {
+  const response = await fetch(
+    `${PAYSTACK_BASE_URL}/transactions?customer_id=${customer}`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${getSecretKey()}`,
+      },
+    },
+  );
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(`Paystack customer transactions error: ${data.message || response.statusText}`);
+  }
+  return data;
 }
 
 export async function createDedicatedAccount(

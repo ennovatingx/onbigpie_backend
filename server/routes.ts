@@ -33,7 +33,7 @@ function createAuthToken(userId: string) {
 }
 
 // Middleware to check authentication
-function authenticateToken(req: Request, res: Response, next: NextFunction) {
+export function authenticateToken(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
 
@@ -52,6 +52,25 @@ function authenticateToken(req: Request, res: Response, next: NextFunction) {
   } catch (_error) {
     return res.status(401).json({ error: "Invalid or expired token" });
   }
+}
+
+// Optional authentication - sets userId if token provided, but doesn't fail if missing
+function optionalAuthenticateToken(req: Request, res: Response, next: NextFunction) {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+
+  if (token) {
+    try {
+      const payload = jwt.verify(token, getJwtSecret()) as { userId?: string };
+      if (payload?.userId) {
+        (req as any).userId = payload.userId;
+      }
+    } catch (_error) {
+      // Ignore errors - token is optional
+    }
+  }
+
+  next();
 }
 
 export async function registerRoutes(
@@ -99,6 +118,105 @@ export async function registerRoutes(
   app.get("/api/swagger.json", (req, res) => {
     res.setHeader("Content-Type", "application/json");
     res.send(swaggerSpec);
+  });
+
+    /**
+   * @swagger
+   * /auth/register-nopass:
+   *   post:
+   *     summary: Register a user without password (passwordless)
+   *     tags: [Authentication]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               email:
+   *                 type: string
+   *               firstName:
+   *                 type: string
+   *               lastName:
+   *                 type: string
+   *               phoneNumber:
+   *                 type: string
+   *               universityName:
+   *                 type: string
+   *               matriculationNumber:
+   *                 type: string
+   *                 nullable: true
+   *     responses:
+   *       201:
+   *         description: User registered and JWT issued
+   *       400:
+   *         description: Validation error
+   *       500:
+   *         description: Internal server error
+   */
+  app.post("/api/auth/register-nopass", async (req: Request, res: Response) => {
+    try {
+      const { email, firstName, lastName, phoneNumber, universityName, matriculationNumber } = req.body || {};
+      if (!email || !firstName || !lastName) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+      let user = await storage.getUserByEmail(email);
+      if (!user) {
+        user = await storage.createUser({
+          email,
+          firstName,
+          lastName,
+          phoneNumber: phoneNumber || null,
+          universityName: universityName || null,
+          matriculationNumber: matriculationNumber || null,
+          password: randomUUID(), // never used
+          app: "passwordless",
+          isAuthorized: true,
+        });
+      }
+      const token = createAuthToken(user.id);
+      res.status(201).json({ user, token });
+    } catch (error) {
+      console.error("Register-nopass error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  /**
+   * @swagger
+   * /auth/login-nopass:
+   *   post:
+   *     summary: Login without password (passwordless)
+   *     tags: [Authentication]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               email:
+   *                 type: string
+   *     responses:
+   *       200:
+   *         description: JWT issued for user
+   *       404:
+   *         description: User not found
+   *       500:
+   *         description: Internal server error
+   */
+  app.post("/api/auth/login-nopass", async (req: Request, res: Response) => {
+    try {
+      const { email } = req.body || {};
+      if (!email) return res.status(400).json({ error: "Email is required" });
+      const user = await storage.getUserByEmail(email);
+      if (!user) return res.status(404).json({ error: "User not found" });
+      const token = createAuthToken(user.id);
+      res.json({ user, token });
+    } catch (error) {
+      console.error("Login-nopass error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
   });
 
   /**
@@ -564,8 +682,8 @@ export async function registerRoutes(
   }, rideraRoutes);
 
   // Register Wallet/Paystack routes
-  // All wallet routes are public (no authentication required) for now
-  app.use("/api/wallet", walletRoutes);
+  // All wallet routes are public, but will use userId if provided via JWT token
+  app.use("/api/wallet", optionalAuthenticateToken, walletRoutes);
 
   return httpServer;
 }

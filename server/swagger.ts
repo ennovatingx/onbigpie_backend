@@ -38,19 +38,7 @@ const options: swaggerJsdoc.Options = {
             email: { type: "string", format: "email" },
           },
         },
-        RegisterRequest: {
-          type: "object",
-          required: ["firstName", "lastName", "universityName", "phoneNumber", "email", "password"],
-          properties: {
-            firstName: { type: "string", example: "John" },
-            lastName: { type: "string", example: "Doe" },
-            universityName: { type: "string", example: "Harvard University" },
-            matriculationNumber: { type: "string", example: "MAT123456", nullable: true },
-            phoneNumber: { type: "string", example: "+1234567890" },
-            email: { type: "string", format: "email", example: "john.doe@example.com" },
-            password: { type: "string", format: "password", minLength: 8, example: "securePassword123" },
-          },
-        },
+         
         LoginRequest: {
           type: "object",
           required: ["email", "password"],
@@ -827,6 +815,6 @@ const options: swaggerJsdoc.Options = {
     ],
   },
   apis: ["./server/routes.ts", "./server/onecard/routes.ts", "./server/onebigpie/routes.ts", "./server/paystack/routes.ts", "./server/ridera/routes.ts"],
-};
 
+}
 export const swaggerSpec = swaggerJsdoc(options);

@@ -39,6 +39,8 @@ export async function createApp(clientMode: ClientMode = "none") {
         "http://127.0.0.1:5050",
         "http://127.0.0.1:5000",
         "http://127.0.0.1:5173",
+        "https://preview.rideralogistics.com",
+        "https://onbigpie-backend.vercel.app"
       ],
       credentials: true,
     }),

@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { storage } from "../storage.ts";
 import { fundWalletSchema, deductWalletSchema } from "../../shared/schema.ts";
 import { initializeTransaction, verifyTransaction, verifyWebhookSignature, createPaystackCustomer, fetchPaystackCustomer, fetchCustomerTransactions, createDedicatedAccount, listAvailableProviders } from "./client.ts";
+import { authenticateToken } from "../routes.ts";
 
 const router = Router();
 
@@ -49,9 +50,6 @@ const router = Router();
  */
 router.get("/customer/:emailOrCode", async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).userId;
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
-
     const emailOrCode = String(req.params.emailOrCode ?? "").trim();
     if (!emailOrCode) {
       return res.status(400).json({ error: "emailOrCode is required" });
@@ -108,9 +106,6 @@ router.get("/customer/:emailOrCode", async (req: Request, res: Response) => {
  */
 router.get("/customer/:customerId/transactions", async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).userId;
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
-
     const customerIdRaw = String(req.params.customerId ?? "").trim();
     const customerId = Number(customerIdRaw);
     if (!customerIdRaw || Number.isNaN(customerId) || customerId <= 0) {
@@ -141,14 +136,18 @@ router.get("/customer/:customerId/transactions", async (req: Request, res: Respo
  *             schema:
  *               $ref: '#/components/schemas/WalletBalanceResponse'
  *       401:
- *         description: Unauthorized
+ *         description: Unauthorized - JWT required
  */
-router.get("/balance", async (req: Request, res: Response) => {
+router.get("/balance", authenticateToken, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
-
-    const wallet = await storage.getOrCreateWallet(userId);
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const wallet = await storage.getWalletByUserId(userId);
+    if (!wallet) {
+      return res.status(404).json({ error: "User does not have a wallet" });
+    }
     res.json({
       balance: wallet.balance,
       updatedAt: wallet.updatedAt,
@@ -183,13 +182,14 @@ router.get("/balance", async (req: Request, res: Response) => {
  *       400:
  *         description: Validation error
  *       401:
- *         description: Unauthorized
+ *         description: Unauthorized - JWT required
  */
-router.post("/fund", async (req: Request, res: Response) => {
+router.post("/fund", authenticateToken, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
-
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
     const validationResult = fundWalletSchema.safeParse(req.body);
     if (!validationResult.success) {
       const errors = validationResult.error.errors.map(err => ({
@@ -198,15 +198,12 @@ router.post("/fund", async (req: Request, res: Response) => {
       }));
       return res.status(400).json({ error: "Validation failed", details: errors });
     }
-
     const { amount, callbackUrl } = validationResult.data;
     const user = await storage.getUser(userId);
     if (!user) return res.status(401).json({ error: "User not found" });
-
     const wallet = await storage.getOrCreateWallet(userId);
     const reference = `WF-${randomUUID()}`;
     const amountInKobo = Math.round(amount * 100);
-
     const paystackResult = await initializeTransaction(
       user.email,
       amountInKobo,
@@ -214,7 +211,6 @@ router.post("/fund", async (req: Request, res: Response) => {
       callbackUrl,
       { userId, walletId: wallet.id, type: "wallet_funding" },
     );
-
     await storage.createWalletTransaction({
       walletId: wallet.id,
       userId,
@@ -225,7 +221,6 @@ router.post("/fund", async (req: Request, res: Response) => {
       description: "Wallet funding via Paystack",
       metadata: JSON.stringify({ paystack_access_code: paystackResult.data.access_code }),
     });
-
     res.json({
       message: "Payment initialized",
       reference,
@@ -263,15 +258,15 @@ router.post("/fund", async (req: Request, res: Response) => {
  *       400:
  *         description: Invalid reference or already processed
  *       401:
- *         description: Unauthorized
+ *         description: Unauthorized - JWT required
  */
-router.get("/verify/:reference", async (req: Request, res: Response) => {
+router.get("/verify/:reference", authenticateToken, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
-
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
     const reference = req.params.reference as string;
-
     const existingTx = await storage.getWalletTransactionByReference(reference);
     if (!existingTx) {
       return res.status(404).json({ error: "Transaction not found" });
@@ -280,57 +275,25 @@ router.get("/verify/:reference", async (req: Request, res: Response) => {
       return res.status(403).json({ error: "Not your transaction" });
     }
     if (existingTx.status === "success") {
-      const wallet = await storage.getWalletByUserId(userId);
-      return res.json({
-        message: "Payment already verified and credited",
-        status: "success",
-        balance: wallet?.balance || "0.00",
-      });
+      return res.status(400).json({ error: "Transaction already processed" });
     }
-
-    if (existingTx.status !== "pending") {
-      return res.status(400).json({ error: `Transaction already ${existingTx.status}` });
-    }
-
+    const user = await storage.getUser(userId);
+    if (!user) return res.status(401).json({ error: "User not found" });
     const paystackResult = await verifyTransaction(reference);
-
-    if (paystackResult.data.status === "success") {
-      const paidAmountNaira = (paystackResult.data.amount / 100).toFixed(2);
-      const expectedAmount = existingTx.amount;
-
-      if (paidAmountNaira !== expectedAmount) {
-        await storage.updateWalletTransactionStatus(reference, "failed");
-        return res.status(400).json({
-          error: "Amount mismatch",
-          expected: expectedAmount,
-          received: paidAmountNaira,
-        });
-      }
-
-      const result = await storage.atomicCreditWallet(reference, userId, paidAmountNaira);
-      if (!result) {
-        return res.json({
-          message: "Payment already processed",
-          status: "success",
-        });
-      }
-
-      res.json({
-        message: "Payment verified and wallet credited",
-        status: "success",
-        amountCredited: paidAmountNaira,
-        balance: result.wallet.balance,
-      });
-    } else {
-      await storage.updateWalletTransactionStatus(reference, paystackResult.data.status);
-      res.json({
-        message: `Payment ${paystackResult.data.status}`,
-        status: paystackResult.data.status,
-        gatewayResponse: paystackResult.data.gateway_response,
-      });
+    if (paystackResult.data.status !== "success") {
+      return res.status(400).json({ error: "Payment not successful" });
     }
+    const paidAmountNaira = paystackResult.data.amount / 100;
+    const result = await storage.atomicCreditWallet(reference, userId, paidAmountNaira);
+    res.json({
+      message: "Wallet funded successfully",
+      status: paystackResult.data.status,
+      amountCredited: paidAmountNaira.toFixed(2),
+      balance: result.balance,
+      gatewayResponse: paystackResult.data.gateway_response,
+    });
   } catch (error) {
-    console.error("Verify payment error:", error);
+    console.error("Verify wallet payment error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -506,8 +469,14 @@ router.post("/webhook", async (req: Request, res: Response) => {
  */
 router.post("/deduct", async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).userId;
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    let userId = (req as any).userId;
+    if (!userId) {
+      const email = req.body?.email;
+      if (!email) return res.status(400).json({ error: "Email or authentication required" });
+      const user = await storage.getUserByEmail(email);
+      if (!user) return res.status(404).json({ error: "User not found" });
+      userId = user.id;
+    }
 
     const validationResult = deductWalletSchema.safeParse(req.body);
     if (!validationResult.success) {
@@ -576,8 +545,14 @@ router.post("/deduct", async (req: Request, res: Response) => {
  */
 router.get("/transactions", async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).userId;
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    let userId = (req as any).userId;
+    if (!userId) {
+      const email = req.query.email as string;
+      if (!email) return res.status(400).json({ error: "Email or authentication required" });
+      const user = await storage.getUserByEmail(email);
+      if (!user) return res.status(404).json({ error: "User not found" });
+      userId = user.id;
+    }
 
     const transactions = await storage.getWalletTransactions(userId);
     res.json({ transactions });
@@ -630,8 +605,18 @@ router.get("/transactions", async (req: Request, res: Response) => {
  */
 router.post("/account", async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).userId;
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    let userId = (req as any).userId;
+    if (!userId) {
+      return res.status(404).json({ error: "User not found" });
+      // const email = req.body?.email;
+      // if (!email) return res.status(400).json({ error: "Email or authentication required" });
+      // const user = await storage.getUserByEmail(email);
+      // if (!user) return res.status(404).json({ error: "User not found" });
+      // userId = user.id;
+    }
+    const user = await storage.getUser(userId);
+    if (!user) return res.status(404).json({ error: "User not found" });
+    userId = user.id;
 
     const existingAccount = await storage.getDedicatedAccountByUserId(userId);
     if (existingAccount) {
@@ -643,16 +628,16 @@ router.post("/account", async (req: Request, res: Response) => {
       });
     }
 
-    const user = await storage.getUser(userId);
-    if (!user) return res.status(401).json({ error: "User not found" });
+    const userRecord = await storage.getUser(userId);
+    if (!userRecord) return res.status(401).json({ error: "User not found" });
 
     let paystackCustomer = await storage.getPaystackCustomerByUserId(userId);
     if (!paystackCustomer) {
       const customerResult = await createPaystackCustomer(
-        user.email,
-        user.firstName,
-        user.lastName,
-        user.phoneNumber,
+        userRecord.email,
+        userRecord.firstName,
+        userRecord.lastName,
+        userRecord.phoneNumber,
       );
       paystackCustomer = await storage.createPaystackCustomer({
         userId,
@@ -746,8 +731,14 @@ router.post("/account", async (req: Request, res: Response) => {
  */
 router.get("/account", async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).userId;
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    let userId = (req as any).userId;
+    if (!userId) {
+      const email = req.query.email as string;
+      if (!email) return res.status(400).json({ error: "Email or authentication required" });
+      const user = await storage.getUserByEmail(email);
+      if (!user) return res.status(404).json({ error: "User not found" });
+      userId = user.id;
+    }
 
     const account = await storage.getDedicatedAccountByUserId(userId);
     if (!account) {
@@ -792,8 +783,14 @@ router.get("/account", async (req: Request, res: Response) => {
  */
 router.get("/providers", async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).userId;
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    let userId = (req as any).userId;
+    if (!userId) {
+      const email = req.query.email as string;
+      if (!email) return res.status(400).json({ error: "Email or authentication required" });
+      const user = await storage.getUserByEmail(email);
+      if (!user) return res.status(404).json({ error: "User not found" });
+      userId = user.id;
+    }
 
     const providers = await listAvailableProviders();
     res.json(providers);

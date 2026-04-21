@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import { storage } from "../storage.ts";
 import { createReferralSchema, createQuoteSchema, updateQuoteSchema, createSocialLinkSchema, updateSocialLinkSchema, createSocialNumberSchema, updateSocialNumberSchema, createSavedSocialNumberSchema, updateSavedSocialNumberSchema } from "../../shared/schema.ts";
 import * as rideraClient from "./client.ts";
-import { authenticateToken } from "server/routes.ts";
+import { authenticateToken } from "../routes.ts";
 
 const router = Router();
 

@@ -349,6 +349,11 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(socialNumbers.createdAt));
   }
 
+    async getSocialNumbersPublic(): Promise<SocialNumber[]> {
+      return db.select().from(socialNumbers).orderBy(desc(socialNumbers.createdAt));
+   
+  }
+
   async updateSocialNumber(id: number, updates: Partial<SocialNumber>): Promise<SocialNumber | undefined> {
     const [socialNumber] = await db.update(socialNumbers)
       .set({

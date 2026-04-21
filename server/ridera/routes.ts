@@ -1074,6 +1074,47 @@ router.get("/social-numbers", authenticateToken, async (req: Request, res: Respo
 
 /**
  * @swagger
+ * /ridera/social-numbers-public:
+ *   get:
+ *     summary: Get all social numbers (public endpoint, no authentication required)
+ *     tags: [Social Numbers]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Social numbers retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/SocialNumberResponse'
+ *       401:
+ *         description: Unauthorized
+ */
+router.get("/social-numbers-public",  async (req: Request, res: Response) => {
+  try {
+    // const userId = (req as any).userId;
+    // if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const socialNumbers = await storage.getSocialNumbersPublic()
+    return res.json({
+      success: true,
+      data: socialNumbers,
+    });
+  } catch (error) {
+    console.error("Get social numbers error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * @swagger
  * /ridera/social-numbers/{id}:
  *   get:
  *     summary: Get social number by ID

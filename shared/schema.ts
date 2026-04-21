@@ -133,6 +133,24 @@ export const socialLinks = pgTable("social_links", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const socialNumbers = pgTable("social_numbers", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  name: text("name").notNull(),
+  phoneNumber: text("phone_number").notNull(),
+  isVerified: boolean("is_verified").notNull().default(false),
+  status: text("status").notNull().default("active"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const savedSocialNumbers = pgTable("saved_social_numbers", {
+  id: serial("id").primaryKey(),
+  phoneNumber: text("phone_number").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const fundWalletSchema = z.object({
   amount: z.number().min(100, "Minimum funding amount is 100 Naira"),
   callbackUrl: z.string().url().optional(),
@@ -181,6 +199,26 @@ export const updateSocialLinkSchema = z.object({
   status: z.enum(["active", "inactive"]).optional(),
 });
 
+export const createSocialNumberSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  phoneNumber: z.string().min(10, "Valid phone number is required"),
+});
+
+export const updateSocialNumberSchema = z.object({
+  name: z.string().min(1, "Name is required").optional(),
+  phoneNumber: z.string().min(10, "Valid phone number is required").optional(),
+  isVerified: z.boolean().optional(),
+  status: z.enum(["active", "inactive"]).optional(),
+});
+
+export const createSavedSocialNumberSchema = z.object({
+  phoneNumber: z.string().min(10, "Valid phone number is required"),
+});
+
+export const updateSavedSocialNumberSchema = z.object({
+  phoneNumber: z.string().min(10, "Valid phone number is required").optional(),
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type PaystackCustomer = typeof paystackCustomers.$inferSelect;
@@ -190,6 +228,8 @@ export type WalletTransaction = typeof walletTransactions.$inferSelect;
 export type Referral = typeof referrals.$inferSelect;
 export type Quote = typeof quotes.$inferSelect;
 export type SocialLink = typeof socialLinks.$inferSelect;
+export type SocialNumber = typeof socialNumbers.$inferSelect;
+export type SavedSocialNumber = typeof savedSocialNumbers.$inferSelect;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
@@ -202,3 +242,7 @@ export type CreateQuoteInput = z.infer<typeof createQuoteSchema>;
 export type UpdateQuoteInput = z.infer<typeof updateQuoteSchema>;
 export type CreateSocialLinkInput = z.infer<typeof createSocialLinkSchema>;
 export type UpdateSocialLinkInput = z.infer<typeof updateSocialLinkSchema>;
+export type CreateSocialNumberInput = z.infer<typeof createSocialNumberSchema>;
+export type UpdateSocialNumberInput = z.infer<typeof updateSocialNumberSchema>;
+export type CreateSavedSocialNumberInput = z.infer<typeof createSavedSocialNumberSchema>;
+export type UpdateSavedSocialNumberInput = z.infer<typeof updateSavedSocialNumberSchema>;

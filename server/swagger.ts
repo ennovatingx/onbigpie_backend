@@ -785,6 +785,52 @@ const options: swaggerJsdoc.Options = {
             updatedAt: { type: "string", format: "date-time" },
           },
         },
+        CreateSocialNumberRequest: {
+          type: "object",
+          required: ["name", "phoneNumber"],
+          properties: {
+            name: { type: "string", example: "Family Group", minLength: 1, description: "Name for the social number" },
+            phoneNumber: { type: "string", example: "+2348012345678", minLength: 10, description: "Phone number for the social reference" },
+          },
+        },
+        UpdateSocialNumberRequest: {
+          type: "object",
+          properties: {
+            name: { type: "string", example: "Updated Family Group", minLength: 1, description: "Updated name", nullable: true },
+            phoneNumber: { type: "string", example: "+2348098765432", minLength: 10, description: "Updated phone number", nullable: true },
+            isVerified: { type: "boolean", example: true, description: "Verification status", nullable: true },
+            status: { type: "string", enum: ["active", "inactive"], example: "active", description: "Status of the social number", nullable: true },
+          },
+        },
+        SocialNumberResponse: {
+          type: "object",
+          properties: {
+            id: { type: "integer", example: 1 },
+            userId: { type: "string", format: "uuid", example: "550e8400-e29b-41d4-a716-446655440000" },
+            name: { type: "string", example: "Family Group" },
+            phoneNumber: { type: "string", example: "+2348012345678" },
+            isVerified: { type: "boolean", example: true },
+            status: { type: "string", enum: ["active", "inactive"], example: "active" },
+            createdAt: { type: "string", format: "date-time" },
+            updatedAt: { type: "string", format: "date-time" },
+          },
+        },
+        CreateSavedSocialNumberRequest: {
+          type: "object",
+          required: ["phoneNumber"],
+          properties: {
+            phoneNumber: { type: "string", example: "+2348012345678", description: "Phone number to save" },
+          },
+        },
+        SavedSocialNumberResponse: {
+          type: "object",
+          properties: {
+            id: { type: "integer", example: 1 },
+            phoneNumber: { type: "string", example: "+2348012345678" },
+            createdAt: { type: "string", format: "date-time" },
+            updatedAt: { type: "string", format: "date-time" },
+          },
+        },
       },
     },
     tags: [
@@ -811,6 +857,14 @@ const options: swaggerJsdoc.Options = {
       {
         name: "Social Links",
         description: "Social link management for social media referral codes and WhatsApp integration",
+      },
+      {
+        name: "Social Numbers",
+        description: "Social number management for storing and managing phone numbers with social context",
+      },
+      {
+        name: "Saved Social Numbers",
+        description: "Saved social number management - bookmark and organize frequently used social numbers",
       },
     ],
   },

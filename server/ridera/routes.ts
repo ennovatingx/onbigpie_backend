@@ -1,8 +1,9 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { randomUUID } from "crypto";
 import { storage } from "../storage.ts";
-import { createReferralSchema, createQuoteSchema, updateQuoteSchema, createSocialLinkSchema, updateSocialLinkSchema } from "../../shared/schema.ts";
+import { createReferralSchema, createQuoteSchema, updateQuoteSchema, createSocialLinkSchema, updateSocialLinkSchema, createSocialNumberSchema, updateSocialNumberSchema, createSavedSocialNumberSchema, updateSavedSocialNumberSchema } from "../../shared/schema.ts";
 import * as rideraClient from "./client.ts";
+import { authenticateToken } from "server/routes.ts";
 
 const router = Router();
 
@@ -32,7 +33,8 @@ const router = Router();
  *       401:
  *         description: Unauthorized
  */
-router.post("/referrals", async (req: Request, res: Response) => {
+
+router.post("/referrals", authenticateToken,  async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -101,7 +103,7 @@ router.post("/referrals", async (req: Request, res: Response) => {
  *       401:
  *         description: Unauthorized
  */
-router.get("/referrals", async (req: Request, res: Response) => {
+router.get("/referrals", authenticateToken, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -149,7 +151,7 @@ router.get("/referrals", async (req: Request, res: Response) => {
  *       404:
  *         description: Referral not found
  */
-router.get("/referrals/:id", async (req: Request, res: Response) => {
+router.get("/referrals/:id", authenticateToken, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -223,7 +225,7 @@ router.get("/referrals/:id", async (req: Request, res: Response) => {
  *       404:
  *         description: Referral not found
  */
-router.patch("/referrals/:id", async (req: Request, res: Response) => {
+router.patch("/referrals/:id", authenticateToken, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -283,7 +285,7 @@ router.patch("/referrals/:id", async (req: Request, res: Response) => {
  *       404:
  *         description: Referral not found
  */
-router.delete("/referrals/:id", async (req: Request, res: Response) => {
+router.delete("/referrals/:id", authenticateToken, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -335,7 +337,7 @@ router.delete("/referrals/:id", async (req: Request, res: Response) => {
  *       400:
  *         description: Validation error
  */
-router.post("/quotes", async (req: Request, res: Response) => {
+router.post("/quotes",  async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId || null;
 
@@ -398,7 +400,7 @@ router.post("/quotes", async (req: Request, res: Response) => {
  *       403:
  *         description: User not authorized for this service
  */
-router.get("/quotes", async (req: Request, res: Response) => {
+router.get("/quotes", authenticateToken, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -454,7 +456,7 @@ router.get("/quotes", async (req: Request, res: Response) => {
  *       404:
  *         description: Quote not found
  */
-router.get("/quotes/:id", async (req: Request, res: Response) => {
+router.get("/quotes/:id", authenticateToken, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -525,7 +527,7 @@ router.get("/quotes/:id", async (req: Request, res: Response) => {
  *       404:
  *         description: Quote not found
  */
-router.patch("/quotes/:id", async (req: Request, res: Response) => {
+router.patch("/quotes/:id", authenticateToken, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -598,7 +600,7 @@ router.patch("/quotes/:id", async (req: Request, res: Response) => {
  *       404:
  *         description: Quote not found
  */
-router.delete("/quotes/:id", async (req: Request, res: Response) => {
+router.delete("/quotes/:id", authenticateToken, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -656,7 +658,7 @@ router.delete("/quotes/:id", async (req: Request, res: Response) => {
  *       401:
  *         description: Unauthorized
  */
-router.post("/social-links", async (req: Request, res: Response) => {
+router.post("/social-links", authenticateToken, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -710,7 +712,7 @@ router.post("/social-links", async (req: Request, res: Response) => {
  *       401:
  *         description: Unauthorized
  */
-router.get("/social-links", async (req: Request, res: Response) => {
+router.get("/social-links", authenticateToken, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -758,7 +760,7 @@ router.get("/social-links", async (req: Request, res: Response) => {
  *       404:
  *         description: Social link not found
  */
-router.get("/social-links/:id", async (req: Request, res: Response) => {
+router.get("/social-links/:id", authenticateToken, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -880,7 +882,7 @@ router.get("/social-links/code/:socialCode", async (req: Request, res: Response)
  *       404:
  *         description: Social link not found
  */
-router.patch("/social-links/:id", async (req: Request, res: Response) => {
+router.patch("/social-links/:id", authenticateToken, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -944,7 +946,7 @@ router.patch("/social-links/:id", async (req: Request, res: Response) => {
  *       404:
  *         description: Social link not found
  */
-router.delete("/social-links/:id", async (req: Request, res: Response) => {
+router.delete("/social-links/:id", authenticateToken, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -970,6 +972,386 @@ router.delete("/social-links/:id", async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Delete social link error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * @swagger
+ * /ridera/social-numbers:
+ *   post:
+ *     summary: Create a new social number
+ *     tags: [Social Numbers]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CreateSocialNumberRequest'
+ *     responses:
+ *       201:
+ *         description: Social number created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SocialNumberResponse'
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Unauthorized
+ */
+router.post("/social-numbers", authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const validationResult = createSocialNumberSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      const errors = validationResult.error.errors.map(err => ({
+        field: err.path.join("."),
+        message: err.message,
+      }));
+      return res.status(400).json({ error: "Validation failed", details: errors });
+    }
+
+    const socialNumber = await storage.createSocialNumber({
+      userId,
+      ...validationResult.data,
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: socialNumber,
+    });
+  } catch (error) {
+    console.error("Create social number error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * @swagger
+ * /ridera/social-numbers:
+ *   get:
+ *     summary: Get all social numbers for authenticated user
+ *     tags: [Social Numbers]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Social numbers retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/SocialNumberResponse'
+ *       401:
+ *         description: Unauthorized
+ */
+router.get("/social-numbers", authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const socialNumbers = await storage.getSocialNumbersByUserId(userId);
+    return res.json({
+      success: true,
+      data: socialNumbers,
+    });
+  } catch (error) {
+    console.error("Get social numbers error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * @swagger
+ * /ridera/social-numbers/{id}:
+ *   get:
+ *     summary: Get social number by ID
+ *     tags: [Social Numbers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Social Number ID
+ *     responses:
+ *       200:
+ *         description: Social number retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/SocialNumberResponse'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Social number not found
+ */
+router.get("/social-numbers/:id", authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const id = Number(req.params.id);
+    if (!id || id <= 0) {
+      return res.status(400).json({ error: "Invalid social number ID" });
+    }
+
+    const socialNumber = await storage.getSocialNumberById(id);
+    if (!socialNumber) {
+      return res.status(404).json({ error: "Social number not found" });
+    }
+
+    // Ensure user owns this social number
+    if (socialNumber.userId !== userId) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    return res.json({
+      success: true,
+      data: socialNumber,
+    });
+  } catch (error) {
+    console.error("Get social number error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * @swagger
+ * /ridera/social-numbers/{id}:
+ *   patch:
+ *     summary: Update a social number
+ *     tags: [Social Numbers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Social Number ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UpdateSocialNumberRequest'
+ *     responses:
+ *       200:
+ *         description: Social number updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/SocialNumberResponse'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Social number not found
+ */
+router.patch("/social-numbers/:id", authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const id = Number(req.params.id);
+    if (!id || id <= 0) {
+      return res.status(400).json({ error: "Invalid social number ID" });
+    }
+
+    const socialNumber = await storage.getSocialNumberById(id);
+    if (!socialNumber) {
+      return res.status(404).json({ error: "Social number not found" });
+    }
+
+    if (socialNumber.userId !== userId) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const validationResult = updateSocialNumberSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      const errors = validationResult.error.errors.map(err => ({
+        field: err.path.join("."),
+        message: err.message,
+      }));
+      return res.status(400).json({ error: "Validation failed", details: errors });
+    }
+
+    const updated = await storage.updateSocialNumber(id, validationResult.data);
+    return res.json({
+      success: true,
+      data: updated,
+    });
+  } catch (error) {
+    console.error("Update social number error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * @swagger
+ * /ridera/social-numbers/{id}:
+ *   delete:
+ *     summary: Delete a social number
+ *     tags: [Social Numbers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Social Number ID
+ *     responses:
+ *       200:
+ *         description: Social number deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Social number not found
+ */
+router.delete("/social-numbers/:id", authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const id = Number(req.params.id);
+    if (!id || id <= 0) {
+      return res.status(400).json({ error: "Invalid social number ID" });
+    }
+
+    const socialNumber = await storage.getSocialNumberById(id);
+    if (!socialNumber) {
+      return res.status(404).json({ error: "Social number not found" });
+    }
+
+    if (socialNumber.userId !== userId) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    await storage.deleteSocialNumber(id);
+    return res.json({
+      success: true,
+      message: "Social number deleted successfully",
+    });
+  } catch (error) {
+    console.error("Delete social number error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * @swagger
+ * /ridera/saved-social-numbers:
+ *   post:
+ *     summary: Save a social number for quick access
+ *     tags: [Saved Social Numbers]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CreateSavedSocialNumberRequest'
+ *     responses:
+ *       201:
+ *         description: Social number saved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/SavedSocialNumberResponse'
+ *       400:
+ *         description: Validation error
+ */
+router.post("/saved-social-numbers", async (req: Request, res: Response) => {
+  try {
+    const validationResult = createSavedSocialNumberSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      const errors = validationResult.error.errors.map(err => ({
+        field: err.path.join("."),
+        message: err.message,
+      }));
+      return res.status(400).json({ error: "Validation failed", details: errors });
+    }
+
+    const savedSocialNumber = await storage.createSavedSocialNumber({
+      phoneNumber: validationResult.data.phoneNumber,
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: savedSocialNumber,
+    });
+  } catch (error) {
+    console.error("Create saved social number error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * @swagger
+ * /ridera/saved-social-numbers:
+ *   get:
+ *     summary: Get saved social numbers (public)
+ *     tags: [Saved Social Numbers]
+ *     responses:
+ *       200:
+ *         description: Saved social numbers retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/SavedSocialNumberResponse'
+ */
+router.get("/saved-social-numbers", async (req: Request, res: Response) => {
+  try {
+    const savedSocialNumbers = await storage.getSavedSocialNumbers();
+    return res.json({
+      success: true,
+      data: savedSocialNumbers,
+    });
+  } catch (error) {
+    console.error("Get saved social numbers error:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 });

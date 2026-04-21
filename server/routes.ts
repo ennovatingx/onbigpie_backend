@@ -677,9 +677,11 @@ export async function registerRoutes(
   app.use("/api/onebigpie", oneBigPieRoutes);
 
   // Register Ridera routes (with authentication middleware)
-  app.use("/api/ridera", (req, res, next) => {
-    return authenticateToken(req, res, next);
-  }, rideraRoutes);
+  // app.use("/api/ridera", (req, res, next) => {
+  //   return authenticateToken(req, res, next);
+  // }, rideraRoutes);
+
+   app.use("/api/ridera", rideraRoutes);
 
   // Register Wallet/Paystack routes
   // All wallet routes are public, but will use userId if provided via JWT token

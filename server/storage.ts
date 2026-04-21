@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type Wallet, type WalletTransaction, type PaystackCustomer, type DedicatedAccount, type Referral, type Quote, type SocialLink, users, wallets, walletTransactions, paystackCustomers, dedicatedAccounts, referrals, quotes, socialLinks } from "../shared/schema.ts";
+import { type User, type InsertUser, type Wallet, type WalletTransaction, type PaystackCustomer, type DedicatedAccount, type Referral, type Quote, type SocialLink, type SocialNumber, type SavedSocialNumber, users, wallets, walletTransactions, paystackCustomers, dedicatedAccounts, referrals, quotes, socialLinks, socialNumbers, savedSocialNumbers } from "../shared/schema.ts";
 import { db } from "./db.ts";
 import { eq, desc, sql } from "drizzle-orm";
 
@@ -41,6 +41,16 @@ export interface IStorage {
   getSocialLinkByCode(socialCode: string): Promise<SocialLink | undefined>;
   updateSocialLink(id: number, updates: Partial<SocialLink>): Promise<SocialLink | undefined>;
   deleteSocialLink(id: number): Promise<void>;
+  createSocialNumber(data: { userId: string; name: string; phoneNumber: string }): Promise<SocialNumber>;
+  getSocialNumberById(id: number): Promise<SocialNumber | undefined>;
+  getSocialNumbersByUserId(userId: string): Promise<SocialNumber[]>;
+  updateSocialNumber(id: number, updates: Partial<SocialNumber>): Promise<SocialNumber | undefined>;
+  deleteSocialNumber(id: number): Promise<void>;
+  createSavedSocialNumber(data: { phoneNumber: string }): Promise<SavedSocialNumber>;
+  getSavedSocialNumberById(id: number): Promise<SavedSocialNumber | undefined>;
+  getSavedSocialNumbers(): Promise<SavedSocialNumber[]>;
+  updateSavedSocialNumber(id: number, updates: Partial<SavedSocialNumber>): Promise<SavedSocialNumber | undefined>;
+  deleteSavedSocialNumber(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -317,6 +327,72 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSocialLink(id: number): Promise<void> {
     await db.delete(socialLinks).where(eq(socialLinks.id, id));
+  }
+
+  async createSocialNumber(data: { userId: string; name: string; phoneNumber: string }): Promise<SocialNumber> {
+    const [socialNumber] = await db.insert(socialNumbers).values({
+      ...data,
+      status: "active",
+      isVerified: false,
+    }).returning();
+    return socialNumber;
+  }
+
+  async getSocialNumberById(id: number): Promise<SocialNumber | undefined> {
+    const [socialNumber] = await db.select().from(socialNumbers).where(eq(socialNumbers.id, id));
+    return socialNumber;
+  }
+
+  async getSocialNumbersByUserId(userId: string): Promise<SocialNumber[]> {
+    return db.select().from(socialNumbers)
+      .where(eq(socialNumbers.userId, userId))
+      .orderBy(desc(socialNumbers.createdAt));
+  }
+
+  async updateSocialNumber(id: number, updates: Partial<SocialNumber>): Promise<SocialNumber | undefined> {
+    const [socialNumber] = await db.update(socialNumbers)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(socialNumbers.id, id))
+      .returning();
+    return socialNumber;
+  }
+
+  async deleteSocialNumber(id: number): Promise<void> {
+    await db.delete(socialNumbers).where(eq(socialNumbers.id, id));
+  }
+
+  async createSavedSocialNumber(data: { phoneNumber: string }): Promise<SavedSocialNumber> {
+    const [savedSocialNumber] = await db.insert(savedSocialNumbers).values({
+      phoneNumber: data.phoneNumber,
+    }).returning();
+    return savedSocialNumber;
+  }
+
+  async getSavedSocialNumberById(id: number): Promise<SavedSocialNumber | undefined> {
+    const [savedSocialNumber] = await db.select().from(savedSocialNumbers).where(eq(savedSocialNumbers.id, id));
+    return savedSocialNumber;
+  }
+
+  async getSavedSocialNumbers(): Promise<SavedSocialNumber[]> {
+    return db.select().from(savedSocialNumbers).orderBy(desc(savedSocialNumbers.createdAt));
+  }
+
+  async updateSavedSocialNumber(id: number, updates: Partial<SavedSocialNumber>): Promise<SavedSocialNumber | undefined> {
+    const [savedSocialNumber] = await db.update(savedSocialNumbers)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(savedSocialNumbers.id, id))
+      .returning();
+    return savedSocialNumber;
+  }
+
+  async deleteSavedSocialNumber(id: number): Promise<void> {
+    await db.delete(savedSocialNumbers).where(eq(savedSocialNumbers.id, id));
   }
 }
 
